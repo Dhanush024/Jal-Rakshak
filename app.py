@@ -341,14 +341,31 @@ def build_investigation_map(state, slider_minutes=0, selected_vessel_mmsi=None):
         tooltip="Oil Spill Detection Point",
     ).add_to(fmap)
 
-    # 2. Origin uncertainty zone
-    folium.Circle(
-        location=[source_lat, source_lon],
-        radius=uncertainty_km * 1000,
-        color="#ff8c00", fill=True, fill_color="#ff8c00", fill_opacity=0.15,
-        dash_array="10 6",
-        tooltip=f"Estimated Origin Zone (±{uncertainty_km:.1f} km)",
-    ).add_to(fmap)
+    # 2. Source Probability Likelihood Surface & Credible Zones
+    source_prob = state.get("source_probability", {})
+    credible_zones = source_prob.get("credible_zones", [])
+    if credible_zones:
+        for cz in reversed(credible_zones):  # Outer to inner for proper SVG layering
+            pts = cz.get("polygon_points", [])
+            if pts:
+                folium.Polygon(
+                    locations=pts,
+                    color=cz.get("color_hex", "#ff8c00"),
+                    weight=1.5,
+                    fill=True,
+                    fill_color=cz.get("color_hex", "#ff8c00"),
+                    fill_opacity=cz.get("fill_opacity", 0.15),
+                    tooltip=f"{cz.get('name')}: {cz.get('description')}",
+                ).add_to(fmap)
+    else:
+        folium.Circle(
+            location=[source_lat, source_lon],
+            radius=uncertainty_km * 1000,
+            color="#ff8c00", fill=True, fill_color="#ff8c00", fill_opacity=0.15,
+            dash_array="10 6",
+            tooltip=f"Estimated Origin Zone (±{uncertainty_km:.1f} km)",
+        ).add_to(fmap)
+
     folium.Marker(
         location=[source_lat, source_lon],
         icon=folium.DivIcon(html='<div style="font-size:12px; color:#ff8c00; font-weight:bold; white-space:nowrap; background:rgba(0,0,0,0.6); padding:2px 4px; border-radius:3px;">▲ ESTIMATED ORIGIN</div>'),
@@ -574,6 +591,22 @@ if active_image and os.path.exists(active_image):
                     <div class="metric-value">{perimeter:.3f} km</div>
                 </div>
                 ''', unsafe_allow_html=True)
+
+                # Spill Age Estimation
+                age_data = final_state.get("age_estimation", {})
+                if age_data and age_data.get("status") == "ESTIMATED":
+                    age_rng = age_data.get("estimated_age_range_hours")
+                    age_str = f"{age_rng[0]:.1f} – {age_rng[1]:.1f} hrs" if age_rng else f"{age_data.get('best_estimate_hours', 'N/A')} hrs"
+                    fay_reg = age_data.get("fay_regime", "N/A").replace("_", " ").title()
+                    st.markdown(f'''
+                    <div class="metric-card">
+                        <div class="metric-label">Estimated Spill Age (Weathering)</div>
+                        <div class="metric-value" style="color: #38bdf8;">{age_str}</div>
+                        <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Regime: {fay_reg} (Conf: {age_data.get('confidence', 0):.0%})</div>
+                    </div>
+                    ''', unsafe_allow_html=True)
+                elif age_data and age_data.get("status") == "UNKNOWN":
+                    st.caption("ℹ️ Spill Age: UNKNOWN (Insufficient morphological / temporal resolution)")
 
                 # Validation
                 val = final_state.get("validation_result", {})
@@ -882,19 +915,36 @@ if active_image and os.path.exists(active_image):
                     st.markdown("### 📄 Investigation Incident Report")
                     report = final_state.get("incident_report", {})
 
-                    col_rep1, col_rep2 = st.columns([3, 1])
+                    col_rep1, col_rep2, col_rep3 = st.columns([2, 1, 1])
                     with col_rep1:
                         st.markdown(f"**Incident ID:** `{report.get('incident_id', 'N/A')}`")
                         st.markdown(f"**Classification:** {render_data_badge(report.get('classification', 'CONFIDENTIAL'))}", unsafe_allow_html=True)
                     with col_rep2:
                         report_json_str = json.dumps(report, indent=2, default=str)
                         st.download_button(
-                            "📥 Download Report JSON",
+                            "📥 Report JSON",
                             data=report_json_str,
                             file_name=f"incident_report_{report.get('incident_id', 'jal_rakshak')}.json",
                             mime="application/json",
                             use_container_width=True,
                         )
+                    with col_rep3:
+                        import tempfile
+                        from reporting.pdf import generate_pdf_report
+                        pdf_tmp = os.path.join(tempfile.gettempdir(), f"{report.get('incident_id', 'JR-REPORT')}.pdf")
+                        try:
+                            generate_pdf_report(report, pdf_tmp)
+                            with open(pdf_tmp, "rb") as f_pdf:
+                                pdf_bytes = f_pdf.read()
+                            st.download_button(
+                                "📄 Official PDF",
+                                data=pdf_bytes,
+                                file_name=f"{report.get('incident_id', 'JR-REPORT')}_Dossier.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
+                            )
+                        except Exception as e:
+                            st.caption(f"PDF export notice: {e}")
 
                     with st.expander(f"📑 View Incident Report Sections", expanded=False):
                         for section in report.get("sections", []):

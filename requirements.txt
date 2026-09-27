@@ -24,7 +24,7 @@ scikit-image
 scikit-learn
 
 # Reporting
-fpdf2
+reportlab
 
 # Geospatial
 shapely

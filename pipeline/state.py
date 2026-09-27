@@ -43,6 +43,8 @@ class PipelineState(TypedDict, total=False):
     characterized: bool
     characterization: Dict[str, Any]    # SpillCharacterization.to_dict()
     spill_area_sq_km: float
+    age_estimation: Dict[str, Any]      # AgeEstimationResult.to_dict()
+    multi_temporal: Optional[Dict[str, Any]]
 
     # ── Hindcast (Node 5) ──
     hindcast_done: bool
@@ -50,6 +52,7 @@ class PipelineState(TypedDict, total=False):
     source_lat: float
     source_lon: float
     source_uncertainty_km: float
+    source_probability: Dict[str, Any]  # SourceProbabilityResult.to_dict()
 
     # ── AIS Correlation (Node 6) ──
     ais_done: bool

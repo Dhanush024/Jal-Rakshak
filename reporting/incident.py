@@ -65,6 +65,11 @@ class IncidentReport:
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2, default=str)
 
+    def export_pdf(self, output_path: str) -> str:
+        """Export this incident report as a styled PDF dossier."""
+        from reporting.pdf import generate_pdf_report
+        return generate_pdf_report(self.to_dict(), output_path)
+
 
 def generate_report(
     incident_id: str,
@@ -78,6 +83,9 @@ def generate_report(
     risk_assessment: Dict = None,
     alert_log: Dict = None,
     ocean_data: Dict = None,
+    age_estimation: Dict = None,
+    source_probability: Dict = None,
+    multi_temporal: Dict = None,
     is_demo: bool = False,
 ) -> IncidentReport:
     """
@@ -107,6 +115,26 @@ def generate_report(
             DataClassification.SIMULATED if is_demo else DataClassification.OBSERVED,
         )
 
+    # 2b. Spill Age Estimation & Weathering
+    if age_estimation:
+        report.add_section(
+            "Spill Age & Weathering Dynamics",
+            age_estimation,
+            DataClassification.INFERRED,
+        )
+        report.add_limitation(
+            "Spill age estimation uses morphological elongation and Fay spreading theory. "
+            "Without multi-temporal satellite passes, age bounds represent empirical approximations."
+        )
+
+    # 2c. Multi-temporal SAR Tracking
+    if multi_temporal:
+        report.add_section(
+            "Multi-Temporal SAR Tracking",
+            multi_temporal,
+            DataClassification.OBSERVED if not is_demo else DataClassification.SIMULATED,
+        )
+
     # 3. Validation
     if validation_result:
         report.add_section(
@@ -126,6 +154,21 @@ def generate_report(
         report.add_limitation(
             "Hindcast trajectory assumes constant current/wind fields. "
             "Real conditions may vary significantly over the drift period."
+        )
+
+    # 4b. Source Probability Surface
+    if source_probability:
+        report.add_section(
+            "Probable Source Likelihood Surface",
+            {
+                "peak_location": f"{source_probability.get('peak_lat', 0):.4f}, {source_probability.get('peak_lon', 0):.4f}",
+                "dispersion_sigma_km": source_probability.get("dispersion_sigma_km"),
+                "p50_radius_km": source_probability.get("p50_radius_km"),
+                "p95_radius_km": source_probability.get("p95_radius_km"),
+                "core_area_sq_km": source_probability.get("high_probability_area_sq_km"),
+                "uncertainty_statement": source_probability.get("uncertainty_statement"),
+            },
+            DataClassification.INFERRED,
         )
 
     # 5. Vessel Attribution

@@ -103,3 +103,47 @@ Demo data is self-contained and works offline with no external API calls.
 
 **Rationale:** Satisfies the specification requirement to never silently present
 simulated data as real.
+
+---
+
+## ADR-009: Fay Spreading Model for Spill Age Estimation
+
+**Context:** The problem statement requires estimating spill age where scientifically feasible,
+while strictly prohibiting fabrication of arbitrary timestamps.
+
+**Decision:** Implement J.A. Fay's physical spreading theory combined with morphological
+indicators (solidity, aspect ratio elongation, patch count). If only a single image with
+insufficient resolution (< 50 px) or ambiguous morphology is present, return `AGE: UNKNOWN`
+with explicit scientific rationale. If multi-temporal SAR passes are available, project
+areal growth $dA/dt$ back to point release.
+
+**Rationale:** Preserves scientific credibility and prevents deceptive certainty.
+
+---
+
+## ADR-010: 2D Bayesian Source Likelihood Surface
+
+**Context:** Hindcast drift estimates produce a single origin coordinate, but oceanic
+turbulence and current shear create a spatial dispersion cloud.
+
+**Decision:** Use Monte Carlo particle ensembles combined with 2D Gaussian dispersion
+to generate concentric Bayesian credible zones: P50 (Red, 50% core), P75 (Orange, 75%),
+and P95 (Yellow, 95% outer boundary). Overlay these contours on Folium with transparency.
+
+**Rationale:** Accurately communicates spatial uncertainty to operational decision-makers
+without presenting a single deterministic point as absolute truth.
+
+---
+
+## ADR-011: Official Incident Dossier PDF Generation via ReportLab
+
+**Context:** Maritime authorities require an official, formal investigation report for
+evidence logging and inter-agency coordination.
+
+**Decision:** Use ReportLab Platypus with a dynamic two-pass canvas (`NumberedCanvas`)
+to generate formatted, multi-page PDFs with running headers/footers ("Page X of Y"),
+color-coded data classification badges (`OBSERVED`, `INFERRED`, `PREDICTED`, `SIMULATED`),
+candidate vessel rankings, coastal defense recommendations, and formal review sign-off blocks.
+
+**Rationale:** Provides an official, printable paper trail while embedding transparent
+disclaimers on legal non-adjudication.

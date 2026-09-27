@@ -190,10 +190,16 @@ def node_characterize(state: PipelineState) -> dict:
             centroid_geo = (state["spill_lat"], state["spill_lon"])
 
         result = characterize_spill(mask, centroid_geo=centroid_geo)
+
+        # Estimate spill age from morphology and weathering heuristics
+        from sar.weathering import SpillAgeEstimator
+        age_res = SpillAgeEstimator.estimate_age(result, wind_speed_ms=DEFAULT_WIND_SPEED_MS)
+
         return {
             "characterized": True,
             "characterization": result.to_dict(),
             "spill_area_sq_km": result.area_sq_km,
+            "age_estimation": age_res.to_dict(),
         }
     except Exception as e:
         logger.error(f"Characterization failed: {e}")
@@ -201,6 +207,7 @@ def node_characterize(state: PipelineState) -> dict:
             "characterized": False,
             "characterization": {},
             "spill_area_sq_km": 0.0,
+            "age_estimation": {},
             "errors": state.get("errors", []) + [f"Characterization: {str(e)}"],
         }
 
@@ -232,12 +239,25 @@ def node_hindcast(state: PipelineState) -> dict:
         )
 
         result = drift.hindcast(spill_lat, spill_lon, detection_time)
+
+        # Generate 2D source probability surface with Monte Carlo particles
+        from ocean.probability import SourceProbabilityModel
+        particles = drift.particle_ensemble(spill_lat, spill_lon, detection_time, num_particles=80)
+        prob_surface = SourceProbabilityModel.generate_surface(
+            origin_lat=result.origin_lat,
+            origin_lon=result.origin_lon,
+            origin_time=result.origin_time,
+            final_uncertainty_km=result.final_uncertainty_km,
+            particle_endpoints=particles,
+        )
+
         return {
             "hindcast_done": True,
             "hindcast_result": result.to_dict(),
             "source_lat": result.origin_lat,
             "source_lon": result.origin_lon,
             "source_uncertainty_km": result.final_uncertainty_km,
+            "source_probability": prob_surface.to_dict(),
         }
     except Exception as e:
         logger.error(f"Hindcast failed: {e}")
@@ -247,6 +267,7 @@ def node_hindcast(state: PipelineState) -> dict:
             "source_lat": state.get("spill_lat", DEMO_SPILL_LAT),
             "source_lon": state.get("spill_lon", DEMO_SPILL_LON),
             "source_uncertainty_km": 0.0,
+            "source_probability": {},
             "errors": state.get("errors", []) + [f"Hindcast: {str(e)}"],
         }
 
@@ -546,6 +567,9 @@ def node_report(state: PipelineState) -> dict:
             coastal_impact=state.get("coastal_impact"),
             risk_assessment=state.get("risk_assessment"),
             alert_log=state.get("alert_log"),
+            age_estimation=state.get("age_estimation"),
+            source_probability=state.get("source_probability"),
+            multi_temporal=state.get("multi_temporal"),
             is_demo=is_demo,
         )
 
