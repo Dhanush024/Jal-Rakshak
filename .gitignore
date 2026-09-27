@@ -1,0 +1,50 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+*.whl
+
+# ===== Virtual Environments =====
+.venv/
+venv/
+ENV/
+env/
+
+# ===== Environment Secrets =====
+.env
+.env.local
+.env.production
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Application =====
+temp_upload.*
+uploads/
+*.tmp
+
+# ===== Model weights (large files) =====
+# Uncomment if using Git LFS for model files:
+# best.pt
+
+# ===== Logs =====
+logs/
+*.log
+
+# ===== Reports =====
+reports/*.pdf

@@ -1,6 +1,33 @@
+# Core Framework
 streamlit
+langgraph
+
+# UI / Mapping
 folium
 streamlit-folium
+
+# ML / Computer Vision
 ultralytics
+opencv-python-headless
+numpy
+Pillow
+
+# AIS / Networking
 websocket-client
-langgraph
+
+# Configuration
+python-dotenv
+
+# SAR Processing (classical methods)
+scipy
+scikit-image
+scikit-learn
+
+# Reporting
+fpdf2
+
+# Geospatial
+shapely
+
+# Testing
+pytest
