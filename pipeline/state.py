@@ -65,6 +65,8 @@ class PipelineState(TypedDict, total=False):
     # ── Drift Forecast (Node 8) ──
     forecast_done: bool
     forecast_results: List[Dict[str, Any]]  # [DriftResult.to_dict()]
+    coastal_done: bool
+    coastal_impact: Dict[str, Any]      # CoastalImpactResult.to_dict()
 
     # ── Risk Assessment (Node 9) ──
     risk_done: bool

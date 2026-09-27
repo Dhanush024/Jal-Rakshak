@@ -805,6 +805,63 @@ if active_image and os.path.exists(active_image):
                                 st.caption(f"→ {dest:.4f}°N, {fc.get('destination_lon', 0):.4f}°E")
 
                 # ──────────────────────────────────────────────────
+                # Coastal Impact & Shoreline Vulnerability Panel
+                # ──────────────────────────────────────────────────
+                if final_state.get("coastal_done"):
+                    st.divider()
+                    st.markdown(f"### 🏖️ Coastal Impact & Shoreline Threat Assessment {render_data_badge('PREDICTED')}", unsafe_allow_html=True)
+                    coastal = final_state.get("coastal_impact", {})
+
+                    c_col1, c_col2, c_col3, c_col4 = st.columns(4)
+                    with c_col1:
+                        st.metric("Shoreline Distance", f"{coastal.get('shortest_distance_to_coast_km', 0):.1f} km")
+                        st.caption(f"Nearest: {coastal.get('nearest_shoreline_point', {}).get('name', 'N/A')}")
+                    with c_col2:
+                        eta_val = coastal.get("eta_to_coast_hours")
+                        st.metric("Estimated Landfall ETA", f"{eta_val:.1f} hrs" if eta_val else "No Landfall")
+                        unc = coastal.get("eta_uncertainty_range_hours")
+                        if unc:
+                            st.caption(f"Window: {unc[0]:.1f} - {unc[1]:.1f} hrs")
+                    with c_col3:
+                        st.metric("Vulnerability Score", f"{coastal.get('coastal_vulnerability_score', 0):.0f}/100")
+                        st.caption(f"Tier: {coastal.get('risk_tier', 'LOW')}")
+                    with c_col4:
+                        st.metric("Threatened Assets", f"{coastal.get('threatened_assets_count', 0)}")
+                        st.caption("Ecological & Infrastructure")
+
+                    # Threatened assets table
+                    threatened = coastal.get("threatened_assets", [])
+                    if threatened:
+                        st.markdown("**🛡️ High-Priority Protected Assets in Impact Zone:**")
+                        for t in threatened:
+                            t_level = t.get("threat_level", "MONITOR")
+                            t_color = "#ff4b4b" if t_level == "IMMINENT" else ("#ff8c00" if t_level == "HIGH_RISK" else "#ffc107")
+                            st.markdown(f"""
+                            <div style="background:#161b22; border-left:4px solid {t_color}; padding:10px 14px; border-radius:6px; margin-bottom:8px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <strong style="color:white;">{t['name']} ({t['category'].upper()})</strong>
+                                    <span style="color:{t_color}; font-weight:700; font-size:12px;">{t_level} • ESI {t['esi']}/10</span>
+                                </div>
+                                <div style="font-size:12px; color:#8b949e; margin-top:3px;">
+                                    Distance: {t['distance_from_spill_km']:.1f} km | Corridor: {t['distance_from_corridor_km']:.1f} km | Authority: {t['contact_authority']}
+                                </div>
+                                <div style="font-size:12px; color:#3fb950; margin-top:4px;">
+                                    Tactical Strategy: {t['recommended_strategy']}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                    # Booming & Dispersant guidelines
+                    crecs = coastal.get("containment_recommendations", [])
+                    dres = coastal.get("dispersant_restrictions", [])
+                    if crecs or dres:
+                        st.markdown("**🎯 Environmental Countermeasure Rules:**")
+                        for r in crecs:
+                            st.markdown(f"  • 🛡️ {r}")
+                        for d in dres:
+                            st.markdown(f"  • 🚫 **{d}**")
+
+                # ──────────────────────────────────────────────────
                 # Alerts Panel
                 # ──────────────────────────────────────────────────
                 if final_state.get("alerts_done"):

@@ -403,15 +403,32 @@ def node_forecast(state: PipelineState) -> dict:
         results = drift.forecast(spill_lat, spill_lon, current_time,
                                   forecast_hours=[6, 12, 24])
 
+        # Assess coastal proximity, landfall ETA, and sensitive area threats
+        from coastal.impact import assess_coastal_impact
+        coastal_res = assess_coastal_impact(
+            spill_lat=spill_lat,
+            spill_lon=spill_lon,
+            current_speed_ms=DEFAULT_CURRENT_SPEED_MS,
+            current_bearing_deg=DEFAULT_CURRENT_BEARING_DEG,
+            wind_speed_ms=DEFAULT_WIND_SPEED_MS,
+            wind_bearing_deg=DEFAULT_WIND_BEARING_DEG,
+            wind_leeway_factor=DEFAULT_WIND_FACTOR,
+            forecast_results=[r.to_dict() for r in results],
+        )
+
         return {
             "forecast_done": True,
             "forecast_results": [r.to_dict() for r in results],
+            "coastal_done": True,
+            "coastal_impact": coastal_res.to_dict(),
         }
     except Exception as e:
-        logger.error(f"Forecast failed: {e}")
+        logger.error(f"Forecast/Coastal impact failed: {e}")
         return {
             "forecast_done": False,
             "forecast_results": [],
+            "coastal_done": False,
+            "coastal_impact": {},
             "errors": state.get("errors", []) + [f"Forecast: {str(e)}"],
         }
 
@@ -421,9 +438,13 @@ def node_forecast(state: PipelineState) -> dict:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def node_risk(state: PipelineState) -> dict:
-    """Calculate multi-factor risk assessment."""
+    """Calculate multi-factor risk assessment incorporating coastal impact."""
     try:
         from risk.engine import assess_risk
+
+        coastal = state.get("coastal_impact", {})
+        eta_to_coast = coastal.get("eta_to_coast_hours")
+        sensitive_count = len(coastal.get("threatened_assets", []))
 
         result = assess_risk(
             spill_area_sq_km=state.get("spill_area_sq_km", 0.0),
@@ -431,6 +452,8 @@ def node_risk(state: PipelineState) -> dict:
             validation_confidence=state.get("validation_confidence", 0.0),
             wind_speed_ms=DEFAULT_WIND_SPEED_MS,
             current_speed_ms=DEFAULT_CURRENT_SPEED_MS,
+            eta_to_coast_hours=eta_to_coast,
+            sensitive_areas_nearby=sensitive_count,
         )
 
         return {
@@ -520,6 +543,7 @@ def node_report(state: PipelineState) -> dict:
             hindcast_result=state.get("hindcast_result"),
             vessel_scores=state.get("candidate_scores"),
             forecast_results=state.get("forecast_results"),
+            coastal_impact=state.get("coastal_impact"),
             risk_assessment=state.get("risk_assessment"),
             alert_log=state.get("alert_log"),
             is_demo=is_demo,

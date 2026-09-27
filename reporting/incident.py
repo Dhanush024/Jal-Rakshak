@@ -74,6 +74,7 @@ def generate_report(
     hindcast_result: Dict = None,
     vessel_scores: List[Dict] = None,
     forecast_results: List[Dict] = None,
+    coastal_impact: Dict = None,
     risk_assessment: Dict = None,
     alert_log: Dict = None,
     ocean_data: Dict = None,
@@ -149,12 +150,30 @@ def generate_report(
             {"forecasts": forecast_results},
             DataClassification.PREDICTED,
         )
+    # 7. Coastal & Environmental Impact
+    if coastal_impact:
+        report.add_section(
+            "Coastal & Environmental Impact Assessment",
+            {
+                "nearest_shoreline": coastal_impact.get("nearest_shoreline_point", {}).get("name"),
+                "shortest_distance_km": coastal_impact.get("shortest_distance_to_coast_km"),
+                "landfall_projected": coastal_impact.get("landfall_projected"),
+                "eta_to_coast_hours": coastal_impact.get("eta_to_coast_hours"),
+                "eta_uncertainty_range_hours": coastal_impact.get("eta_uncertainty_range_hours"),
+                "coastal_vulnerability_score": coastal_impact.get("coastal_vulnerability_score"),
+                "threatened_assets_count": coastal_impact.get("threatened_assets_count"),
+                "threatened_assets": coastal_impact.get("threatened_assets"),
+                "containment_recommendations": coastal_impact.get("containment_recommendations"),
+                "dispersant_restrictions": coastal_impact.get("dispersant_restrictions"),
+            },
+            DataClassification.PREDICTED,
+        )
         report.add_limitation(
-            "Drift predictions are estimates based on current environmental conditions. "
-            "Actual movement will depend on changing ocean and weather conditions."
+            "Shoreline landfall ETA depends on hydrodynamic models and wind leeway factor (0.03). "
+            "Tidal flux and nearshore surf zone dynamics may modify actual arrival time."
         )
 
-    # 7. Risk Assessment
+    # 8. Risk Assessment
     if risk_assessment:
         report.add_section(
             "Risk Assessment",

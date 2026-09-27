@@ -29,11 +29,11 @@
 | 18 | Oceanographic Data (live) | ⏳ PENDING | — | — |
 | 20 | Source Probability Map | ⏳ PENDING | — | — |
 | 21 | AIS + Ocean Fusion | ⏳ PENDING | — | — |
-| 23 | Coastal Impact | ⏳ PENDING | — | — |
-| 24 | Incident Timeline | ⏳ PENDING | — | — |
+| 23 | Coastal Impact | ✅ COMPLETE | 6/6 | Shoreline proximity, landfall ETA, ESI index, countermeasures |
+| 24 | Incident Timeline | ✅ COMPLETE | Interactive Slider | Forensic timeline scrubbing (-180m to +60m) |
 | 29 | Authority Dashboard | ✅ COMPLETE | Interactive UI | Multi-card layout, telemetry panels |
 | 30 | Map System | ✅ COMPLETE | Folium Map | Vessel tracks, origin zone, forecast, sensitive zones |
-| 34 | Testing | ✅ COMPLETE | 30/30 | All geospatial, ocean, AIS, pipeline integration tests pass |
+| 34 | Testing | ✅ COMPLETE | 36/36 | Geospatial, ocean, AIS, coastal, and pipeline integration tests pass |
 | 35 | Performance | ⏳ PENDING | — | — |
 | 36 | Observability | ⏳ PENDING | — | — |
 | 37 | UI Polish | ⏳ PENDING | — | — |
@@ -42,6 +42,18 @@
 | 40 | Final Demonstration | ⏳ PENDING | — | — |
 
 ## Change Log
+
+### Phase 23-24 — Coastal Impact Assessment & Incident Timeline (COMPLETE)
+- Created `coastal/` package with `zones.py` and `impact.py`:
+  - NOAA/IMO Environmental Sensitivity Index (ESI 1-10) scale
+  - Chennai / Coromandel coastline geometry and sensitive ecological/infrastructure assets (bird sanctuary, turtle nesting, mangroves, desalination plant, power station cooling intake)
+  - Shortest distance to coast calculation (`haversine_km`)
+  - Forward drift trajectory intersection and landfall projection with ETA uncertainty interval
+  - Threatened asset identification & composite coastal vulnerability scoring (0-100)
+  - Protective countermeasure strategies (deflection booming, exclusion barriers, dispersant bans in shallow waters)
+- Integrated coastal assessment into `pipeline/state.py`, `pipeline/graph.py` (node_forecast, node_risk, node_report), and `reporting/incident.py`.
+- Added interactive Coastal Impact & Shoreline Threat Assessment panel in `app.py`.
+- Added 6 dedicated unit & pipeline integration tests in `tests/test_coastal.py` (36/36 passing).
 
 ### Phase 29-30 — Authority Dashboard & Map System (COMPLETE)
 - Rewrote `app.py` integrating the complete 11-node LangGraph pipeline.
