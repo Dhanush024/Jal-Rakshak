@@ -31,9 +31,9 @@
 | 21 | AIS + Ocean Fusion | ⏳ PENDING | — | — |
 | 23 | Coastal Impact | ⏳ PENDING | — | — |
 | 24 | Incident Timeline | ⏳ PENDING | — | — |
-| 29 | Authority Dashboard | 🔄 IN PROGRESS | — | app.py needs rewrite |
-| 30 | Map System | 🔄 IN PROGRESS | — | Folium maps exist but need update |
-| 34 | Testing | 🔄 IN PROGRESS | 28/28 | — |
+| 29 | Authority Dashboard | ✅ COMPLETE | Interactive UI | Multi-card layout, telemetry panels |
+| 30 | Map System | ✅ COMPLETE | Folium Map | Vessel tracks, origin zone, forecast, sensitive zones |
+| 34 | Testing | ✅ COMPLETE | 30/30 | All geospatial, ocean, AIS, pipeline integration tests pass |
 | 35 | Performance | ⏳ PENDING | — | — |
 | 36 | Observability | ⏳ PENDING | — | — |
 | 37 | UI Polish | ⏳ PENDING | — | — |
@@ -42,6 +42,21 @@
 | 40 | Final Demonstration | ⏳ PENDING | — | — |
 
 ## Change Log
+
+### Phase 29-30 — Authority Dashboard & Map System (COMPLETE)
+- Rewrote `app.py` integrating the complete 11-node LangGraph pipeline.
+- Implemented interactive Folium investigation map:
+  - Estimated spill origin zone with uncertainty circle (±km)
+  - Euler hindcast backward drift arrow
+  - Forward drift forecast trajectories (cyan/violet/rose cones)
+  - Candidate AIS vessel tracks (color-coded polylines)
+  - Real-time vessel interpolation based on timeline scrubber slider
+  - Sensitive coastal areas (wildlife sanctuary, fishing harbor, port)
+  - Distance connector line from selected candidate vessel to origin
+- Added interactive Timeline Scrubber (-180 min to +60 min) with forensic simulation time readout.
+- Added candidate vessel selector with breakdown cards and evidence summaries.
+- Added 1-click Quick Launch for Chennai Incident Demonstration Scenario (`demo_sar_patch.png`).
+- Added end-to-end pipeline execution unit tests in `tests/test_core.py` (30/30 passing).
 
 ### Phase 0 — Repository Audit (COMPLETE)
 - Inspected all files: app.py, pipeline.py, ais_engine.py, requirements.txt, devcontainer.json

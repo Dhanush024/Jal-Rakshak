@@ -252,3 +252,44 @@ def generate_demo_coastline() -> List[Dict]:
         {"name": "Covelong", "lat": 12.79, "lon": 80.25},
         {"name": "Mahabalipuram", "lat": 12.62, "lon": 80.19},
     ]
+
+
+def get_or_create_demo_sar_patch(output_path: Optional[str] = None) -> str:
+    """
+    Get or create a synthetic Sentinel-1 SAR image patch for the Chennai demo scenario.
+    Features:
+    - Rayleigh-distributed oceanic sea-clutter speckle noise
+    - Dark irregular oil slick region (damping of surface capillary waves)
+    - High-reflectivity vessel target (point scatterer)
+    """
+    import os
+    import numpy as np
+    import cv2
+
+    if output_path is None:
+        output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo_sar_patch.png")
+
+    if os.path.exists(output_path) and os.path.getsize(output_path) > 100:
+        return output_path
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    h, w = 512, 512
+    # Rayleigh-like speckle background
+    rng = np.random.default_rng(42)
+    base = rng.rayleigh(scale=65, size=(h, w))
+    base = np.clip(base, 20, 240).astype(np.uint8)
+
+    # Dark slick polygon
+    mask = np.zeros((h, w), dtype=np.uint8)
+    pts = np.array([[180, 200], [220, 160], [310, 180], [360, 250], [330, 320], [240, 310], [190, 260]], np.int32)
+    cv2.fillPoly(mask, [pts], 255)
+    mask = cv2.GaussianBlur(mask, (21, 21), 0)
+
+    # Apply dampening in slick area (oil damps Bragg waves -> dark backscatter)
+    slick = (base.astype(np.float32) * (1.0 - 0.7 * (mask.astype(np.float32) / 255.0))).astype(np.uint8)
+
+    # Add vessel point target (bright pixel cluster)
+    slick[150:154, 170:174] = 255
+
+    cv2.imwrite(output_path, slick)
+    return output_path

@@ -34,7 +34,8 @@ Thumbs.db
 desktop.ini
 
 # ===== Application =====
-temp_upload.*
+temp_*
+*_preprocessed.png
 uploads/
 *.tmp
 

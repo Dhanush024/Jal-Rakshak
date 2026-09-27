@@ -287,3 +287,39 @@ class TestPipelineGraph:
         from pipeline.graph import compile_pipeline
         c = compile_pipeline()
         assert c is not None
+
+    def test_pipeline_execution_short_circuit(self, tmp_path):
+        import cv2
+        import numpy as np
+        from pipeline.graph import run_pipeline
+
+        # Empty black image has no spill -> should short-circuit to report
+        blank = np.zeros((100, 100, 3), dtype=np.uint8)
+        img_file = str(tmp_path / "blank.png")
+        cv2.imwrite(img_file, blank)
+
+        res = run_pipeline(img_file, spill_lat=12.45, spill_lon=80.23)
+        assert res.get("spill_detected") is False
+        assert res.get("report_done") is True
+        assert res.get("hindcast_done") is None or res.get("hindcast_done") is False
+
+    def test_pipeline_execution_full_demo(self):
+        import os
+        from pipeline.graph import run_pipeline
+        from demo.scenario import CHENNAI_SCENARIO
+
+        demo_img = os.path.join(os.path.dirname(os.path.dirname(__file__)), "demo", "demo_sar_patch.png")
+        if os.path.exists(demo_img):
+            res = run_pipeline(
+                demo_img,
+                spill_lat=CHENNAI_SCENARIO.spill_lat,
+                spill_lon=CHENNAI_SCENARIO.spill_lon,
+                detection_timestamp=CHENNAI_SCENARIO.detection_time.isoformat(),
+            )
+            assert res.get("spill_detected") is True
+            assert res.get("hindcast_done") is True
+            assert res.get("ais_done") is True
+            assert res.get("attribution_done") is True
+            assert res.get("risk_done") is True
+            assert res.get("report_done") is True
+            assert len(res.get("candidate_scores", [])) > 0

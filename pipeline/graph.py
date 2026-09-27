@@ -614,6 +614,7 @@ def compile_pipeline():
 def run_pipeline(image_path: str,
                  spill_lat: float = None,
                  spill_lon: float = None,
+                 detection_timestamp: str = None,
                  app_mode: str = None) -> PipelineState:
     """
     Convenience function to run the full pipeline.
@@ -622,6 +623,7 @@ def run_pipeline(image_path: str,
         image_path: Path to SAR image
         spill_lat: Spill latitude (defaults to demo value)
         spill_lon: Spill longitude (defaults to demo value)
+        detection_timestamp: ISO timestamp of detection (defaults to scenario time in demo)
         app_mode: "demo" or "live" (defaults to config)
 
     Returns:
@@ -636,11 +638,18 @@ def run_pipeline(image_path: str,
     if app_mode is None:
         app_mode = "demo" if is_demo_mode() else "live"
 
+    if detection_timestamp is None:
+        if app_mode == "demo":
+            from demo.scenario import CHENNAI_SCENARIO
+            detection_timestamp = CHENNAI_SCENARIO.detection_time.isoformat()
+        else:
+            detection_timestamp = datetime.now(timezone.utc).isoformat()
+
     initial_state: PipelineState = {
         "image_path": image_path,
         "spill_lat": spill_lat,
         "spill_lon": spill_lon,
-        "detection_timestamp": datetime.now(timezone.utc).isoformat(),
+        "detection_timestamp": detection_timestamp,
         "app_mode": app_mode,
         "pipeline_start_time": datetime.now(timezone.utc).isoformat(),
         "errors": [],
