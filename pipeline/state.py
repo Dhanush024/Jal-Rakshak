@@ -33,7 +33,8 @@ class PipelineState(TypedDict, total=False):
     # ── Detection (Node 2) ──
     spill_detected: bool
     detection_result: Dict[str, Any]    # DetectionResult.to_dict()
-    spill_coords: List[Any]
+    spill_coords: List[Any]             # Primary spill polygon
+    all_spill_coords: Optional[List[List[Any]]]  # All valid marine spill polygons
     detection_confidence: float
 
     # ── Validation (Node 3) ──

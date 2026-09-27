@@ -554,19 +554,29 @@ if active_image and os.path.exists(active_image):
         with col1:
             st.subheader("Processed Analysis (Instance Segmentation)")
 
-            if final_state.get("spill_detected") and final_state.get("spill_coords"):
+            if final_state.get("spill_detected"):
                 img_cv = cv2.imread(active_image)
                 img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
-
-                pts = np.array(final_state["spill_coords"], np.int32)
-                pts = pts.reshape((-1, 1, 2))
                 overlay = img_cv.copy()
-                cv2.fillPoly(overlay, [pts], (255, 0, 0))
-                cv2.addWeighted(overlay, 0.4, img_cv, 0.6, 0, img_cv)
-                cv2.polylines(img_cv, [pts], isClosed=True, color=(255, 0, 0), thickness=2)
 
-                st.image(img_cv, use_container_width=True,
-                         caption=f"YOLOv8 Segmentation — {len(final_state['spill_coords'])} boundary points")
+                all_coords = final_state.get("all_spill_coords")
+                if not all_coords and final_state.get("spill_coords"):
+                    all_coords = [final_state["spill_coords"]]
+
+                total_pts = 0
+                if all_coords:
+                    for poly in all_coords:
+                        if poly and len(poly) >= 3:
+                            pts = np.array(poly, np.int32).reshape((-1, 1, 2))
+                            cv2.fillPoly(overlay, [pts], (255, 0, 0))
+                            cv2.polylines(img_cv, [pts], isClosed=True, color=(255, 0, 0), thickness=2)
+                            total_pts += len(poly)
+
+                    cv2.addWeighted(overlay, 0.4, img_cv, 0.6, 0, img_cv)
+                    st.image(img_cv, use_container_width=True,
+                             caption=f"YOLOv8 Segmentation — {len(all_coords)} valid marine slick(s) ({total_pts} boundary points)")
+                else:
+                    st.info("No anomalies detected in this sector.")
             else:
                 st.info("No anomalies detected in this sector.")
 

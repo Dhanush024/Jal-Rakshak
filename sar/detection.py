@@ -28,6 +28,9 @@ class SpillDetection:
     detection_timestamp: Optional[str] = None
     tile_id: Optional[int] = None
     source_file: Optional[str] = None
+    is_valid_marine: bool = True
+    rejection_reason: Optional[str] = None
+    mean_intensity: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
@@ -42,6 +45,9 @@ class SpillDetection:
             "detection_timestamp": self.detection_timestamp,
             "tile_id": self.tile_id,
             "source_file": self.source_file,
+            "is_valid_marine": self.is_valid_marine,
+            "rejection_reason": self.rejection_reason,
+            "mean_intensity": round(self.mean_intensity, 2) if self.mean_intensity is not None else None,
         }
 
 
@@ -56,25 +62,35 @@ class DetectionResult:
     preprocessing_level: Optional[str] = None
 
     @property
+    def valid_detections(self) -> List[SpillDetection]:
+        """Return only detections that meet physical maritime constraints."""
+        return [d for d in self.detections if d.is_valid_marine]
+
+    @property
     def spill_detected(self) -> bool:
-        return len(self.detections) > 0
+        """True if at least one valid marine spill detection exists."""
+        return len(self.valid_detections) > 0
 
     @property
     def total_pixel_area(self) -> float:
-        return sum(d.pixel_area for d in self.detections)
+        """Total area of all valid marine detections."""
+        return sum(d.pixel_area for d in self.valid_detections)
 
     @property
     def primary_detection(self) -> Optional[SpillDetection]:
-        """Return the largest detection by area."""
-        if not self.detections:
+        """Return the most confident valid marine spill detection."""
+        valids = self.valid_detections
+        if not valids:
             return None
-        return max(self.detections, key=lambda d: d.pixel_area)
+        return max(valids, key=lambda d: (d.confidence, d.pixel_area))
 
     def to_dict(self) -> dict:
         return {
             "spill_detected": self.spill_detected,
-            "num_detections": len(self.detections),
-            "detections": [d.to_dict() for d in self.detections],
+            "num_detections": len(self.valid_detections),
+            "total_detections": len(self.detections),
+            "detections": [d.to_dict() for d in self.valid_detections],
+            "all_detections": [d.to_dict() for d in self.detections],
             "image_shape": list(self.image_shape),
             "model_name": self.model_name,
             "inference_time_ms": round(self.inference_time_ms, 1),
@@ -92,13 +108,17 @@ class YOLODetector:
     - Multiple spills
     - Malformed masks
     - Very small detections (configurable minimum area)
+    - Marine physical constraints (rejects huge landmasses or scene artifacts)
     """
 
     def __init__(self, model_path: str = None, min_confidence: float = 0.25,
-                 min_area_px: int = 100):
+                 min_area_px: int = 100, max_scene_coverage: float = 0.35,
+                 max_land_overlap: float = 0.40):
         self.model_path = model_path or MODEL_PATH
         self.min_confidence = min_confidence
         self.min_area_px = min_area_px
+        self.max_scene_coverage = max_scene_coverage
+        self.max_land_overlap = max_land_overlap
         self._model = None
 
     @property
@@ -116,7 +136,8 @@ class YOLODetector:
 
     def detect(self, image_path: str,
                pixel_resolution_m: float = None,
-               detection_timestamp: str = None) -> DetectionResult:
+               detection_timestamp: str = None,
+               land_mask: Optional[np.ndarray] = None) -> DetectionResult:
         """
         Run YOLO inference on an image and extract all spill detections.
 
@@ -124,6 +145,7 @@ class YOLODetector:
             image_path: Path to SAR image
             pixel_resolution_m: Pixel resolution in meters (for area calculation)
             detection_timestamp: ISO timestamp of detection
+            land_mask: Optional binary land mask (255 = land) for physical constraint
 
         Returns:
             DetectionResult with all valid detections
@@ -148,6 +170,7 @@ class YOLODetector:
 
         img = cv2.imread(image_path)
         img_shape = img.shape if img is not None else (0, 0)
+        gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if (img is not None and len(img.shape) == 3) else img
 
         detections = []
         result = results[0]
@@ -164,6 +187,8 @@ class YOLODetector:
                         pixel_resolution_m=pixel_resolution_m,
                         detection_timestamp=detection_timestamp,
                         source_file=image_path,
+                        gray_img=gray_img,
+                        land_mask=land_mask,
                     )
                     if detection is not None:
                         detections.append(detection)
@@ -183,7 +208,9 @@ class YOLODetector:
                       detection_id: int, image_shape: Tuple,
                       pixel_resolution_m: float,
                       detection_timestamp: Optional[str],
-                      source_file: Optional[str]) -> Optional[SpillDetection]:
+                      source_file: Optional[str],
+                      gray_img: Optional[np.ndarray] = None,
+                      land_mask: Optional[np.ndarray] = None) -> Optional[SpillDetection]:
         """Process a single detection mask into a SpillDetection object."""
         # Filter by confidence
         if confidence < self.min_confidence:
@@ -222,6 +249,30 @@ class YOLODetector:
         else:
             binary_mask = np.zeros((1, 1), dtype=np.uint8)
 
+        # Marine physical validation checks
+        scene_coverage = (pixel_area / max(1, (h * w))) if (h > 0 and w > 0) else 0.0
+        is_valid_marine = True
+        rejection_reason = None
+        mean_intensity = None
+
+        if gray_img is not None and h > 0 and w > 0:
+            mean_intensity = float(cv2.mean(gray_img, mask=binary_mask)[0])
+
+        if scene_coverage > self.max_scene_coverage:
+            is_valid_marine = False
+            rejection_reason = (
+                f"Scene coverage ({scene_coverage:.1%}) exceeds maximum marine threshold "
+                f"({self.max_scene_coverage:.0%}) — flagged as landmass or full-scene artifact."
+            )
+        elif land_mask is not None and h > 0 and w > 0:
+            land_overlap = np.sum((binary_mask > 0) & (land_mask > 0)) / max(1, np.sum(binary_mask > 0))
+            if land_overlap > self.max_land_overlap:
+                is_valid_marine = False
+                rejection_reason = (
+                    f"Terrestrial land overlap ({land_overlap:.1%}) exceeds marine boundary threshold "
+                    f"({self.max_land_overlap:.0%}) — flagged as coastal/terrestrial artifact."
+                )
+
         # Calculate geographic area
         area_sq_m = pixel_area * (pixel_resolution_m ** 2)
         geo_area_sq_km = area_sq_m / 1_000_000.0
@@ -237,4 +288,7 @@ class YOLODetector:
             geo_area_sq_km=geo_area_sq_km,
             detection_timestamp=detection_timestamp,
             source_file=source_file,
+            is_valid_marine=is_valid_marine,
+            rejection_reason=rejection_reason,
+            mean_intensity=mean_intensity,
         )

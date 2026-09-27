@@ -101,10 +101,14 @@ def node_detect(state: PipelineState) -> dict:
         coords = primary.polygon if primary else []
         confidence = primary.confidence if primary else 0.0
 
+        valid_dets = result.valid_detections
+        all_coords = [d.polygon for d in valid_dets] if valid_dets else ([coords] if coords else [])
+
         return {
             "spill_detected": result.spill_detected,
             "detection_result": result.to_dict(),
             "spill_coords": coords,
+            "all_spill_coords": all_coords,
             "detection_confidence": confidence,
         }
     except Exception as e:
@@ -113,6 +117,7 @@ def node_detect(state: PipelineState) -> dict:
             "spill_detected": False,
             "detection_result": {},
             "spill_coords": [],
+            "all_spill_coords": [],
             "detection_confidence": 0.0,
             "errors": state.get("errors", []) + [f"Detection: {str(e)}"],
         }

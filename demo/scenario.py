@@ -274,19 +274,20 @@ def get_or_create_demo_sar_patch(output_path: Optional[str] = None) -> str:
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     h, w = 512, 512
-    # Rayleigh-like speckle background
+    # Realistic SAR ocean clutter background with multiplicative speckle
     rng = np.random.default_rng(42)
-    base = rng.rayleigh(scale=65, size=(h, w))
-    base = np.clip(base, 20, 240).astype(np.uint8)
+    sea = rng.normal(loc=155, scale=25, size=(h, w))
+    speckle = rng.gamma(shape=4.0, scale=0.25, size=(h, w))
+    base = np.clip(sea * speckle, 20, 240).astype(np.uint8)
 
     # Dark slick polygon
     mask = np.zeros((h, w), dtype=np.uint8)
     pts = np.array([[180, 200], [220, 160], [310, 180], [360, 250], [330, 320], [240, 310], [190, 260]], np.int32)
     cv2.fillPoly(mask, [pts], 255)
-    mask = cv2.GaussianBlur(mask, (21, 21), 0)
+    mask = cv2.GaussianBlur(mask, (15, 15), 0)
 
     # Apply dampening in slick area (oil damps Bragg waves -> dark backscatter)
-    slick = (base.astype(np.float32) * (1.0 - 0.7 * (mask.astype(np.float32) / 255.0))).astype(np.uint8)
+    slick = (base.astype(np.float32) * (1.0 - 0.70 * (mask.astype(np.float32) / 255.0))).astype(np.uint8)
 
     # Add vessel point target (bright pixel cluster)
     slick[150:154, 170:174] = 255
