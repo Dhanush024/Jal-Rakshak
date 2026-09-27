@@ -5,6 +5,7 @@ Multi-channel alert system with simulation mode by default.
 Generates actionable, community-appropriate alerts.
 """
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import List, Optional, Dict
@@ -207,17 +208,73 @@ class AlertManager:
     def _deliver(self, alert: Alert):
         """Deliver alert through configured channels."""
         if self.simulation_mode:
-            logger.info(f"[SIMULATION] Alert {alert.alert_id} generated for {alert.target.value}")
-            alert.delivered = True
+            provider = SimulationNotificationProvider()
+            alert.delivered = provider.send(alert)
             return
 
         for channel in alert.channels:
-            if channel == AlertChannel.DASHBOARD:
-                alert.delivered = True  # Dashboard always works
-            elif channel == AlertChannel.CONSOLE:
-                print(alert.format_community_alert())
+            provider = get_notification_provider(channel)
+            success = provider.send(alert)
+            if success:
                 alert.delivered = True
-            elif channel == AlertChannel.EMAIL:
-                logger.warning(f"Email delivery not configured — alert {alert.alert_id} not sent")
-            elif channel == AlertChannel.SMS:
-                logger.warning(f"SMS delivery not configured — alert {alert.alert_id} not sent")
+
+
+class NotificationProvider(ABC):
+    """Abstract interface for external alert dispatch."""
+
+    @abstractmethod
+    def send(self, alert: Alert) -> bool:
+        """Deliver alert and return True if successful."""
+        ...
+
+
+class SimulationNotificationProvider(NotificationProvider):
+    """Logs simulated dispatch without external network calls."""
+
+    def send(self, alert: Alert) -> bool:
+        logger.info(f"[SIMULATION ALERT] ID: {alert.alert_id} | Target: {alert.target.value} | Priority: {alert.priority.value}")
+        return True
+
+
+class DashboardNotificationProvider(NotificationProvider):
+    """In-app dashboard delivery."""
+
+    def send(self, alert: Alert) -> bool:
+        return True
+
+
+class ConsoleNotificationProvider(NotificationProvider):
+    """Prints formatted ASCII alert banner to console."""
+
+    def send(self, alert: Alert) -> bool:
+        print(alert.format_community_alert())
+        return True
+
+
+class EmailNotificationProvider(NotificationProvider):
+    """SMTP email notification dispatch."""
+
+    def send(self, alert: Alert) -> bool:
+        logger.warning(f"Email delivery unconfigured (SMTP credentials not set) — alert {alert.alert_id} queued.")
+        return False
+
+
+class SMSNotificationProvider(NotificationProvider):
+    """Cellular SMS gateway notification dispatch."""
+
+    def send(self, alert: Alert) -> bool:
+        logger.warning(f"SMS delivery unconfigured (SMS gateway not set) — alert {alert.alert_id} queued.")
+        return False
+
+
+def get_notification_provider(channel: AlertChannel) -> NotificationProvider:
+    """Factory returning provider for requested alert channel."""
+    if channel == AlertChannel.DASHBOARD:
+        return DashboardNotificationProvider()
+    elif channel == AlertChannel.CONSOLE:
+        return ConsoleNotificationProvider()
+    elif channel == AlertChannel.EMAIL:
+        return EmailNotificationProvider()
+    elif channel == AlertChannel.SMS:
+        return SMSNotificationProvider()
+    return SimulationNotificationProvider()

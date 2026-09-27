@@ -44,13 +44,13 @@ def node_preprocess(state: PipelineState) -> dict:
                 "warnings": state.get("warnings", []) + [f"Image not found: {image_path}"],
             }
 
-        image = cv2.imread(image_path)
-        if image is None:
-            return {
-                "preprocessed": False,
-                "preprocessing_steps": [],
-                "warnings": state.get("warnings", []) + ["Failed to read image"],
-            }
+        # Use SARSceneLoader for robust multi-format ingestion and spatial metadata extraction
+        from sar.ingestion import SARSceneLoader
+        image, meta = SARSceneLoader.load(
+            image_path,
+            override_lat=state.get("spill_lat"),
+            override_lon=state.get("spill_lon"),
+        )
 
         result = preprocess_sar(image, level=PreprocessingLevel.ENHANCED)
 
@@ -61,6 +61,7 @@ def node_preprocess(state: PipelineState) -> dict:
         return {
             "preprocessed": True,
             "preprocessing_steps": result.steps_applied,
+            "sar_metadata": meta.to_dict(),
         }
     except Exception as e:
         logger.error(f"Preprocessing failed: {e}")
@@ -230,12 +231,24 @@ def node_hindcast(state: PipelineState) -> dict:
         else:
             detection_time = datetime.now(timezone.utc)
 
+        # Query ocean currents and wind via provider abstraction
+        from ocean.provider import get_ocean_provider
+        ocean_mode = state.get("app_mode", "demo" if is_demo_mode() else "real")
+        ocean_prov = get_ocean_provider(mode=ocean_mode)
+        current_pts = ocean_prov.get_currents(spill_lat, spill_lon, detection_time)
+        wind_pts = ocean_prov.get_wind(spill_lat, spill_lon, detection_time) if hasattr(ocean_prov, "get_wind") else []
+
+        c_speed = current_pts[0].speed_ms if current_pts else DEFAULT_CURRENT_SPEED_MS
+        c_bearing = current_pts[0].direction_deg if current_pts else DEFAULT_CURRENT_BEARING_DEG
+        w_speed = wind_pts[0].speed_ms if wind_pts else DEFAULT_WIND_SPEED_MS
+        w_bearing = wind_pts[0].direction_deg if wind_pts else DEFAULT_WIND_BEARING_DEG
+
         drift = DriftModel(
-            current_speed_ms=DEFAULT_CURRENT_SPEED_MS,
-            current_bearing_deg=DEFAULT_CURRENT_BEARING_DEG,
+            current_speed_ms=c_speed,
+            current_bearing_deg=c_bearing,
             wind_factor=DEFAULT_WIND_FACTOR,
-            wind_speed_ms=DEFAULT_WIND_SPEED_MS,
-            wind_bearing_deg=DEFAULT_WIND_BEARING_DEG,
+            wind_speed_ms=w_speed,
+            wind_bearing_deg=w_bearing,
         )
 
         result = drift.hindcast(spill_lat, spill_lon, detection_time)
@@ -293,14 +306,23 @@ def node_ais_correlate(state: PipelineState) -> dict:
         source_lat = state.get("source_lat", spill_lat)
         source_lon = state.get("source_lon", spill_lon)
 
-        if is_demo_mode() or state.get("app_mode") == "demo":
-            from demo.scenario import generate_demo_ais_tracks
-            raw_tracks = generate_demo_ais_tracks()
-            data_mode = "DEMO"
-        else:
-            # TODO: implement live AIS provider
-            raw_tracks = {}
-            data_mode = "UNAVAILABLE"
+        # Retrieve historical tracks via configured AISProvider (Demo or File)
+        from ais.provider import get_ais_provider
+        ais_mode = state.get("app_mode", "demo" if is_demo_mode() else "real")
+        ais_file = state.get("ais_file_path")
+        ais_prov = get_ais_provider(mode=ais_mode, file_path=ais_file)
+
+        # Define search bounding box around spill and estimated source
+        min_lat = min(spill_lat, source_lat) - 0.4
+        max_lat = max(spill_lat, source_lat) + 0.4
+        min_lon = min(spill_lon, source_lon) - 0.4
+        max_lon = max(spill_lon, source_lon) + 0.4
+        query_bbox = (min_lat, min_lon, max_lat, max_lon)
+
+        query_res = ais_prov.get_historical_tracks(bbox=query_bbox)
+        raw_tracks = query_res.tracks
+        data_mode = query_res.mode.value
+        warnings = list(query_res.warnings)
 
         if raw_tracks:
             filtering = run_filtering_pipeline(
@@ -663,7 +685,8 @@ def run_pipeline(image_path: str,
                  spill_lat: float = None,
                  spill_lon: float = None,
                  detection_timestamp: str = None,
-                 app_mode: str = None) -> PipelineState:
+                 app_mode: str = None,
+                 ais_file_path: str = None) -> PipelineState:
     """
     Convenience function to run the full pipeline.
 
@@ -672,7 +695,8 @@ def run_pipeline(image_path: str,
         spill_lat: Spill latitude (defaults to demo value)
         spill_lon: Spill longitude (defaults to demo value)
         detection_timestamp: ISO timestamp of detection (defaults to scenario time in demo)
-        app_mode: "demo" or "live" (defaults to config)
+        app_mode: "demo", "real", or "auto" (defaults to config)
+        ais_file_path: Optional path to real historical AIS CSV/JSON file
 
     Returns:
         Final PipelineState with all results
@@ -684,7 +708,7 @@ def run_pipeline(image_path: str,
     if spill_lon is None:
         spill_lon = DEMO_SPILL_LON
     if app_mode is None:
-        app_mode = "demo" if is_demo_mode() else "live"
+        app_mode = "demo" if is_demo_mode() else "real"
 
     if detection_timestamp is None:
         if app_mode == "demo":
@@ -699,6 +723,7 @@ def run_pipeline(image_path: str,
         "spill_lon": spill_lon,
         "detection_timestamp": detection_timestamp,
         "app_mode": app_mode,
+        "ais_file_path": ais_file_path,
         "pipeline_start_time": datetime.now(timezone.utc).isoformat(),
         "errors": [],
         "warnings": [],

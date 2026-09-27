@@ -288,13 +288,30 @@ with st.sidebar:
     st.markdown("### 📁 Satellite Imagery")
     uploaded_file = st.file_uploader(
         "Upload SAR imagery (JPG/PNG/GeoTIFF)",
-        type=["jpg", "jpeg", "png"],
+        type=["jpg", "jpeg", "png", "tif", "tiff"],
     )
     if uploaded_file is not None:
         temp_path = "temp_upload.jpg"
         with open(temp_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         st.session_state["active_image_path"] = temp_path
+
+    # 4b. Optional Historical AIS Upload
+    st.markdown("### 🚢 Historical AIS Archive (Optional)")
+    st.caption("Upload real historical AIS telemetry (CSV/JSON) or leave empty for demo.")
+    uploaded_ais = st.file_uploader(
+        "Upload AIS Telemetry",
+        type=["csv", "json", "geojson"],
+        key="ais_uploader",
+    )
+    if uploaded_ais is not None:
+        temp_ais_path = "temp_historical_ais.csv"
+        with open(temp_ais_path, "wb") as f:
+            f.write(uploaded_ais.getbuffer())
+        st.session_state["active_ais_path"] = temp_ais_path
+        st.success("✅ Real AIS Telemetry Loaded")
+    else:
+        st.session_state.pop("active_ais_path", None)
 
     # 5. Spill coordinates
     st.markdown("### 📍 Observation Coordinates")
@@ -514,11 +531,13 @@ if active_image and os.path.exists(active_image):
                     time.sleep(0.15)
 
                 try:
+                    ais_file_to_pass = st.session_state.get("active_ais_path")
                     final_state = run_pipeline(
                         image_path=active_image,
                         spill_lat=spill_lat,
                         spill_lon=spill_lon,
                         app_mode="demo" if is_demo else "live",
+                        ais_file_path=ais_file_to_pass,
                     )
                     st.session_state["pipeline_result"] = final_state
                     progress_bar.progress(1.0)

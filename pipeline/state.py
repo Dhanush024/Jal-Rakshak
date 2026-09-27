@@ -22,7 +22,9 @@ class PipelineState(TypedDict, total=False):
     spill_lat: float              # Detected spill latitude
     spill_lon: float              # Detected spill longitude
     detection_timestamp: str      # ISO-8601
-    app_mode: str                 # "demo" or "live"
+    app_mode: str                 # "demo", "real", or "auto"
+    ais_file_path: Optional[str]  # Optional path to real historical AIS file
+    sar_metadata: Optional[Dict[str, Any]]  # Spatial metadata if georeferenced
 
     # ── SAR Preprocessing (Node 1) ──
     preprocessed: bool
