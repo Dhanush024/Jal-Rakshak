@@ -3509,6 +3509,8 @@ def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
     # ──────────────────────────────────────────────────────────
     cmd_spill_lat = final_state.get("spill_lat", spill_lat) if final_state else spill_lat
     cmd_spill_lon = final_state.get("spill_lon", spill_lon) if final_state else spill_lon
+    source_lat = float(final_state.get("source_lat", final_state.get("hindcast_result", {}).get("estimated_source_lat", final_state.get("hindcast_result", {}).get("origin_lat", cmd_spill_lat))) if final_state else cmd_spill_lat)
+    source_lon = float(final_state.get("source_lon", final_state.get("hindcast_result", {}).get("estimated_source_lon", final_state.get("hindcast_result", {}).get("origin_lon", cmd_spill_lon))) if final_state else cmd_spill_lon)
     cmd_status = final_state.get("validation_status", "AWAITING SENSOR PASS") if final_state else "STANDBY // NO SCAN"
     char_data = final_state.get("characterization", {}) if final_state else {}
     area_val = char_data.get("area_sq_km", final_state.get("spill_area_sq_km", 0.0) if final_state else 0.0)
@@ -3704,8 +3706,11 @@ def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
 
         with qcol2:
             if st.button("🎯 Query Spill Activity", key="btn_query_spill", use_container_width=True, type="secondary"):
+                h_res = final_state.get("hindcast_result", {}) if final_state else {}
+                s_lat = float(final_state.get("source_lat", h_res.get("estimated_source_lat", h_res.get("origin_lat", spill_lat))) if final_state else spill_lat)
+                s_lon = float(final_state.get("source_lon", h_res.get("estimated_source_lon", h_res.get("origin_lon", spill_lon))) if final_state else spill_lon)
                 in_spill = (poly["min_lat"] <= spill_lat <= poly["max_lat"] and poly["min_lon"] <= spill_lon <= poly["max_lon"])
-                in_source = (poly["min_lat"] <= source_lat <= poly["max_lat"] and poly["min_lon"] <= source_lon <= poly["max_lon"])
+                in_source = (poly["min_lat"] <= s_lat <= poly["max_lat"] and poly["min_lon"] <= s_lon <= poly["max_lon"])
                 char = final_state.get("characterization", {}) if final_state else {}
                 st.session_state["region_query_result"] = {
                     "type": "spill",
