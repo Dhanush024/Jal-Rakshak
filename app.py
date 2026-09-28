@@ -3195,74 +3195,128 @@ def render_evidence_panel(final_state, selected_mmsi=None, key_prefix=""):
             """, unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
-# TOP BRAND BAR
+# APPLICATION MODE RESOLUTION
 # ──────────────────────────────────────────────────────────────
+query_mode = st.query_params.get("mode")
+if query_mode in ("landing", "live", "demo"):
+    st.session_state["app_mode"] = query_mode
+elif "app_mode" not in st.session_state:
+    st.session_state["app_mode"] = "landing"
+
+app_mode = st.session_state.get("app_mode", "landing")
+
+default_lat = float(st.session_state.get('spill_lat', DEMO_SPILL_LAT))
+default_lon = float(st.session_state.get('spill_lon', DEMO_SPILL_LON))
+spill_lat = default_lat
+spill_lon = default_lon
+is_demo = (app_mode == "demo")
+
 # Render subtle background atmosphere & command palette
 render_atmospheric_backdrop()
 
-cur_spill_lat = float(st.session_state.get('spill_lat', DEMO_SPILL_LAT))
-cur_spill_lon = float(st.session_state.get('spill_lon', DEMO_SPILL_LON))
+cur_spill_lat = default_lat
+cur_spill_lon = default_lon
 final_state_ref = st.session_state.get("pipeline_result")
 cur_source_lat = float(final_state_ref.get('hindcast_result', {}).get('estimated_source_lat', cur_spill_lat) if final_state_ref else cur_spill_lat)
 cur_source_lon = float(final_state_ref.get('hindcast_result', {}).get('estimated_source_lon', cur_spill_lon) if final_state_ref else cur_spill_lon)
 
 render_command_palette(cur_spill_lat, cur_spill_lon, cur_source_lat, cur_source_lon)
 
-now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-st.markdown(f"""
-<div class="brand-bar glass-panel tactical-reticle">
-    <div class="brand-title-group">
-        <span class="status-pulse" title="System Status: Sentinel-1 Telemetry Engine Active"></span>
-        <div>
-            <div style="display:flex; align-items:center; gap:10px;">
-                <h1 class="brand-title">JAL-RAKSHAK</h1>
-                <span class="telemetry-chip">TACTICAL C2 // EPSG:4326</span>
+# ──────────────────────────────────────────────────────────────
+# TOP BRAND BAR & GLOBAL MODE NAVIGATION
+# ──────────────────────────────────────────────────────────────
+if app_mode != "landing":
+    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    st.markdown(f"""
+    <div class="brand-bar glass-panel tactical-reticle">
+        <div class="brand-title-group">
+            <span class="status-pulse" title="System Status: Sentinel-1 Telemetry Engine Active"></span>
+            <div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <h1 class="brand-title">JAL-RAKSHAK</h1>
+                    <span class="telemetry-chip">TACTICAL C2 // EPSG:4326</span>
+                </div>
+                <div class="brand-subtitle">MARITIME SATELLITE SURVEILLANCE & RECONNAISSANCE INTELLIGENCE SYSTEM</div>
             </div>
-            <div class="brand-subtitle">MARITIME SATELLITE SURVEILLANCE & RECONNAISSANCE INTELLIGENCE SYSTEM</div>
+        </div>
+        <div class="brand-meta-group">
+            <div class="telemetry-readout">
+                <span class="readout-label">SYSTEM EPOCH</span>
+                <span class="readout-val" style="color:#ffffff;">{now_utc}</span>
+            </div>
+            <div class="telemetry-readout">
+                <span class="readout-label">SENSOR PLATFORM</span>
+                <span class="readout-val">SENTINEL-1A [C-SAR // VV+VH]</span>
+            </div>
+            <div class="telemetry-readout">
+                <span class="readout-label">OBSERVATION ANCHOR</span>
+                <span class="readout-val">{cur_spill_lat:.4f}°N, {cur_spill_lon:.4f}°E</span>
+            </div>
+            <div class="telemetry-readout">
+                <span class="readout-label">TELEMETRY LINK</span>
+                <span class="data-tag tag-observed">● SYNCHRONIZED</span>
+            </div>
+            <button id="cmd-palette-topbar-btn" class="cmd-topbar-pill" onclick="window.parent.dispatchEvent(new CustomEvent('jalrakshak:open_palette'))" title="Open Command Palette (/ or ⌘K)">
+                <span class="cmd-pill-key">⌘K</span>
+                <span class="cmd-pill-label">COMMANDS</span>
+                <span class="cmd-pill-key">/</span>
+            </button>
         </div>
     </div>
-    <div class="brand-meta-group">
-        <div class="telemetry-readout">
-            <span class="readout-label">SYSTEM EPOCH</span>
-            <span class="readout-val" style="color:#ffffff;">{now_utc}</span>
+    """, unsafe_allow_html=True)
+
+    # Global Mode Ribbon
+    col_nav_brand, col_nav_home, col_nav_live, col_nav_demo = st.columns([6, 2, 2, 2])
+    with col_nav_brand:
+        mode_badge_text = "🟢 LIVE OPERATIONS CENTER" if app_mode == "live" else "🔶 GUIDED DEMO EVALUATION // CHENNAI"
+        st.markdown(f"""
+        <div style="display:flex; align-items:center; gap:8px; height:100%; padding-top:6px;">
+            <span class="telemetry-micro-label" style="margin:0;">SYSTEM MODE:</span>
+            <strong style="font-family:'JetBrains Mono'; font-size:12px; color:#f8fafc;">{mode_badge_text}</strong>
         </div>
-        <div class="telemetry-readout">
-            <span class="readout-label">SENSOR PLATFORM</span>
-            <span class="readout-val">SENTINEL-1A [C-SAR // VV+VH]</span>
-        </div>
-        <div class="telemetry-readout">
-            <span class="readout-label">OBSERVATION ANCHOR</span>
-            <span class="readout-val">{cur_spill_lat:.4f}°N, {cur_spill_lon:.4f}°E</span>
-        </div>
-        <div class="telemetry-readout">
-            <span class="readout-label">TELEMETRY LINK</span>
-            <span class="data-tag tag-observed">● SYNCHRONIZED</span>
-        </div>
-        <button id="cmd-palette-topbar-btn" class="cmd-topbar-pill" onclick="window.parent.dispatchEvent(new CustomEvent('jalrakshak:open_palette'))" title="Open Command Palette (/ or ⌘K)">
-            <span class="cmd-pill-key">⌘K</span>
-            <span class="cmd-pill-label">COMMANDS</span>
-            <span class="cmd-pill-key">/</span>
-        </button>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+    with col_nav_home:
+        if st.button("🏠 Home Portal", key="global_btn_home", use_container_width=True):
+            st.session_state["app_mode"] = "landing"
+            st.query_params["mode"] = "landing"
+            st.rerun()
+    with col_nav_live:
+        is_live_act = (app_mode == "live")
+        if st.button("🛰️ Live Operations", key="global_btn_live", type="primary" if is_live_act else "secondary", use_container_width=True):
+            st.session_state["app_mode"] = "live"
+            st.query_params["mode"] = "live"
+            st.rerun()
+    with col_nav_demo:
+        is_demo_act = (app_mode == "demo")
+        if st.button("🧪 Guided Demo", key="global_btn_demo", type="primary" if is_demo_act else "secondary", use_container_width=True):
+            st.session_state["app_mode"] = "demo"
+            st.query_params["mode"] = "demo"
+            st.session_state["demo_step"] = 1
+            if not st.session_state.get("pipeline_result"):
+                st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
+                st.session_state["spill_lat"] = CHENNAI_SCENARIO.spill_lat
+                st.session_state["spill_lon"] = CHENNAI_SCENARIO.spill_lon
+                st.session_state["current_scene_name"] = "Chennai Port Outer Anchorage (512x512)"
+                st.session_state["auto_run"] = True
+            st.rerun()
 
 
 # ──────────────────────────────────────────────────────────────
 # SIDEBAR OPERATIONS PANEL
 # ──────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("### 🎛️ Operations Control")
+if app_mode != "landing":
+    with st.sidebar:
+        st.markdown("### 🎛️ Operations Control")
 
-    mode_selection = st.radio(
-        "Sensor Operating Mode",
-        ["🔶 Demo Simulation Mode", "🟢 Live Telemetry Ingestion"],
-        index=0,
-        help="Select between deterministic calibrated demo dataset and live external telemetry feeds.",
-    )
-    is_demo = "Demo" in mode_selection
+        mode_selection = st.radio(
+            "Sensor Operating Mode",
+            ["🔶 Demo Simulation Mode", "🟢 Live Telemetry Ingestion"],
+            index=0 if is_demo else 1,
+            help="Select between deterministic calibrated demo dataset and live external telemetry feeds.",
+        )
+        is_demo = (app_mode == "demo") or ("Demo" in mode_selection)
 
-    st.markdown("---")
+        st.markdown("---")
 
     st.markdown("#### ⚡ Quick-Load Operations")
     col_demo1, col_demo2 = st.columns(2)
@@ -3374,24 +3428,10 @@ if should_run and active_image and os.path.exists(active_image):
 final_state = st.session_state.get("pipeline_result")
 
 
-# ──────────────────────────────────────────────────────────────
-# PERSISTENT WORKFLOW NAVIGATION
-# ──────────────────────────────────────────────────────────────
-tab_overview, tab_analysis, tab_sar, tab_ais, tab_drift, tab_risk, tab_reports = st.tabs([
-    "🛰️ Command Center",
-    "🔬 SAR Intelligence",
-    "📡 Radar Calibration",
-    "🚢 AIS Intelligence",
-    "⏱️ Drift Analysis",
-    "🛡️ Coastal Threat",
-    "📋 Intelligence Reports",
-])
-
-
 # =========================================================================
-# TAB 1: OVERVIEW SCREEN
+# SECTION 1: OVERVIEW SCREEN (TACTICAL MAP & RADAR CANVAS)
 # =========================================================================
-with tab_overview:
+def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
     # ──────────────────────────────────────────────────────────
     # 1. RAPID OPERATIONS RIBBON
     # ──────────────────────────────────────────────────────────
@@ -4149,9 +4189,10 @@ with tab_overview:
 
 
 # =========================================================================
-# TAB 2: ANALYSIS SCREEN (MAIN WORKSPACE)
+# SECTION 2: SAR INTELLIGENCE (DETECTION & CONSENSUS)
 # =========================================================================
-with tab_analysis:
+def render_sar_tab(final_state, is_demo, spill_lat, spill_lon, active_image=None):
+    active_image = active_image or st.session_state.get("active_image_path")
     if not active_image or not os.path.exists(active_image):
         st.info("ℹ️ No SAR imagery loaded. Select a quick scenario from the Command Center or sidebar to begin.")
     else:
@@ -4525,9 +4566,11 @@ with tab_analysis:
             """, unsafe_allow_html=True)
 
 
-# TAB 3: SAR IMAGERY & PREPROCESSING SCREEN
 # =========================================================================
-with tab_sar:
+# SECTION 3: RADAR CALIBRATION SCREEN
+# =========================================================================
+def render_calibration_tab(final_state, is_demo, active_image=None):
+    active_image = active_image or st.session_state.get("active_image_path")
     st.markdown("#### 🛰️ SAR Preprocessing & Sensor Calibration")
     st.caption("Inspect raw sensor values, speckle reduction filters, and land/sea domain separation.")
 
@@ -4593,9 +4636,9 @@ with tab_sar:
 
 
 # =========================================================================
-# TAB 4: AIS CORRELATION & CANDIDATE VESSELS SCREEN
+# SECTION 4: AIS CORRELATION & CANDIDATE VESSELS SCREEN
 # =========================================================================
-with tab_ais:
+def render_ais_tab(final_state, is_demo):
     st.markdown("#### 🚢 AIS Candidate Vessel Intelligence & Spatiotemporal Correlation")
     st.caption("Operational multi-factor spatiotemporal correlation fusing commercial AIS fleet telemetry with estimated slick origin.")
 
@@ -5000,9 +5043,9 @@ with tab_ais:
 
 
 # =========================================================================
-# TAB 5: DRIFT INTELLIGENCE WORKSPACE (PHASE 7)
+# SECTION 5: DRIFT INTELLIGENCE WORKSPACE
 # =========================================================================
-with tab_drift:
+def render_drift_tab(final_state, is_demo):
     st.markdown("#### ⏱️ Drift Intelligence & Hydrodynamic Advection")
     st.caption("Euler advection hindcast, forward drift trajectory projection, and dynamic spatial dispersion envelopes.")
 
@@ -5249,9 +5292,9 @@ with tab_drift:
 
 
 # =========================================================================
-# TAB 6: COASTAL RISK & SHORELINE VULNERABILITY SCREEN
+# SECTION 6: COASTAL RISK & SHORELINE VULNERABILITY SCREEN
 # =========================================================================
-with tab_risk:
+def render_risk_tab(final_state, is_demo):
     st.markdown("#### 🏖️ Coastal Impact & Environmental Asset Vulnerability")
     st.caption("Evaluates shoreline approach vector, sensitive ecological zones, and tactical countermeasure rules.")
 
@@ -5362,9 +5405,9 @@ with tab_risk:
 
 
 # =========================================================================
-# TAB 7: REPORTS SCREEN
+# SECTION 7: REPORTS SCREEN
 # =========================================================================
-with tab_reports:
+def render_reports_tab(final_state, is_demo):
     st.markdown("#### 📄 Incident Dossier & Regulatory Intelligence Reports")
     st.caption("Export tamper-evident PDF dossiers and structured JSON reports for Coast Guard & Port Authorities.")
 
@@ -5433,3 +5476,370 @@ with tab_reports:
                 st.caption(f"• {lim}")
     else:
         st.info("Execute pipeline to generate full forensic incident dossier.")
+
+
+# =========================================================================
+# SENSOR DATA INGESTION PANEL
+# =========================================================================
+def render_ingestion_panel():
+    st.markdown("#### 📁 Sensor Data Ingestion & Target Coordinates")
+    st.caption("Mount external radar imagery (GeoTIFF / PNG / JPG) and historical AIS fleet archives (CSV / JSON / GeoJSON).")
+
+    col_ing1, col_ing2 = st.columns(2)
+    with col_ing1:
+        st.markdown("##### 🛰️ SAR Imagery Feeds")
+        uploaded_sar = st.file_uploader(
+            "Upload SAR Imagery (GeoTIFF / PNG / JPG)",
+            type=["jpg", "jpeg", "png", "tif", "tiff"],
+            key="panel_sar_uploader",
+        )
+        if uploaded_sar is not None:
+            temp_p = "temp_upload.jpg"
+            with open(temp_p, "wb") as f:
+                f.write(uploaded_sar.getbuffer())
+            st.session_state["active_image_path"] = temp_p
+            st.session_state["current_scene_name"] = uploaded_sar.name
+            st.success(f"Mounted SAR Imagery: {uploaded_sar.name}")
+
+    with col_ing2:
+        st.markdown("##### 🚢 AIS Historical Archive")
+        uploaded_ais = st.file_uploader(
+            "Upload Fleet Positions (CSV / JSON / GeoJSON)",
+            type=["csv", "json", "geojson"],
+            key="panel_ais_uploader",
+        )
+        if uploaded_ais is not None:
+            temp_ais = "temp_historical_ais.csv"
+            with open(temp_ais, "wb") as f:
+                f.write(uploaded_ais.getbuffer())
+            st.session_state["active_ais_path"] = temp_ais
+            st.success(f"Mounted AIS Archive: {uploaded_ais.name}")
+
+    st.markdown("---")
+    st.markdown("##### 📍 Observation Coordinate Anchors")
+    c_lat, c_lon = st.columns(2)
+    with c_lat:
+        in_lat = st.number_input(
+            "Target Latitude (°N)",
+            value=float(st.session_state.get("spill_lat", DEMO_SPILL_LAT)),
+            format="%.4f",
+            key="panel_lat_input",
+        )
+        st.session_state["spill_lat"] = in_lat
+    with c_lon:
+        in_lon = st.number_input(
+            "Target Longitude (°E)",
+            value=float(st.session_state.get("spill_lon", DEMO_SPILL_LON)),
+            format="%.4f",
+            key="panel_lon_input",
+        )
+        st.session_state["spill_lon"] = in_lon
+
+    act_img = st.session_state.get("active_image_path")
+    if act_img and os.path.exists(act_img):
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("⚡ EXECUTE MULTI-NODE INTELLIGENCE PIPELINE", type="primary", use_container_width=True, key="panel_exec_btn"):
+            st.session_state["trigger_pipeline_run"] = True
+            st.rerun()
+
+
+# =========================================================================
+# MINIMAL HIGH-IMPACT LANDING SCREEN
+# =========================================================================
+def render_landing_screen():
+    st.markdown("""
+    <style>
+        [data-testid="stSidebar"] { display: none !important; }
+        .block-container { max-width: 1200px !important; padding-top: 2.5rem !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Hero Container
+    st.markdown("""
+    <div class="landing-hero-container">
+        <div class="landing-badge">
+            <span class="status-pulse-sm"></span>
+            SENTINEL-1 C-SAR OPERATIONAL // EPSG:4326 // AUTONOMOUS MARITIME C2
+        </div>
+        <h1 class="landing-title">JAL-RAKSHAK</h1>
+        <p class="landing-subtitle">
+            Autonomous Maritime Satellite Intelligence & Forensic Oil Spill Attribution Platform. 
+            Coupling Sentinel-1 Synthetic Aperture Radar, 3-tier classical consensus verification, 
+            hydrodynamic Euler hindcast drift, and spatiotemporal AIS fleet reconstruction.
+        </p>
+        
+        <div class="landing-telemetry-strip">
+            <div class="landing-telemetry-item">
+                <span class="status-pulse-sm" style="background:#10b981;"></span>
+                <span>RADAR: <strong>SENTINEL-1A C-SAR (VV+VH)</strong></span>
+            </div>
+            <div class="landing-telemetry-item">
+                <span class="status-pulse-sm" style="background:#00e5ff;"></span>
+                <span>OCEAN: <strong>INCOIS / GFS 0.1° CURRENTS</strong></span>
+            </div>
+            <div class="landing-telemetry-item">
+                <span class="status-pulse-sm" style="background:#38bdf8;"></span>
+                <span>AIS RECON: <strong>LIVE SPATIOTEMPORAL STREAM</strong></span>
+            </div>
+            <div class="landing-telemetry-item">
+                <span class="status-pulse-sm" style="background:#8b5cf6;"></span>
+                <span>ENGINE: <strong>LANGGRAPH 11-NODE GRAPH</strong></span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 2 Mode Selection Cards
+    col_card1, col_card2 = st.columns(2)
+
+    with col_card1:
+        st.markdown("""
+        <div class="mode-card mode-card-live">
+            <div>
+                <span class="mode-card-badge">LIVE SATELLITE COMMAND</span>
+                <div class="mode-card-title">
+                    <span>🛰️</span> Live Operations Center
+                </div>
+                <p class="mode-card-desc">
+                    Direct tactical multi-sensor interface. Draw arbitrary polygon bounding boxes to query regional ship traffic, inspect live AIS vessel telemetry, calibrate dark-spot thresholds, and command on-demand radar passes.
+                </p>
+                <ul class="mode-card-features">
+                    <li><span class="feat-bullet">⚡</span> Arbitrary Polygon Selection & Regional Spatial Queries</li>
+                    <li><span class="feat-bullet">🚢</span> Real-Time Fleet Radar with Marker Clustering</li>
+                    <li><span class="feat-bullet">🎯</span> Interactive Target Focus & Candidate Drawer</li>
+                    <li><span class="feat-bullet">📁</span> Custom SAR GeoTIFF & AIS Archive Ingestion</li>
+                </ul>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("ENTER LIVE OPERATIONS →", key="btn_enter_live", type="primary", use_container_width=True):
+            st.session_state["app_mode"] = "live"
+            st.query_params["mode"] = "live"
+            st.rerun()
+
+    with col_card2:
+        st.markdown("""
+        <div class="mode-card mode-card-demo">
+            <div>
+                <span class="mode-card-badge">CURATED EVALUATION WALKTHROUGH</span>
+                <div class="mode-card-title">
+                    <span>🧪</span> Guided Demo & Evaluation
+                </div>
+                <p class="mode-card-desc">
+                    5-step investigative narrative of the confirmed Chennai Port Outer Anchorage spill. Step-by-step evaluation designed for SIH judges and port authorities demonstrating end-to-end evidence synthesis.
+                </p>
+                <ul class="mode-card-features">
+                    <li><span class="feat-bullet">🔬</span> Step 1: SAR Detection & Consensus Scorecard</li>
+                    <li><span class="feat-bullet">⚖️</span> Step 2: AIS Vessel Correlation (MT Ocean Pioneer)</li>
+                    <li><span class="feat-bullet">⏱️</span> Step 3: Origin Hindcast & Euler Drift Backtrack</li>
+                    <li><span class="feat-bullet">🛡️</span> Step 4: Forward Trajectory & Coastal ESI Threat</li>
+                    <li><span class="feat-bullet">📄</span> Step 5: Automated Tamper-Evident PDF Dossier</li>
+                </ul>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("LAUNCH GUIDED DEMO →", key="btn_enter_demo", type="secondary", use_container_width=True):
+            st.session_state["app_mode"] = "demo"
+            st.query_params["mode"] = "demo"
+            st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
+            st.session_state["spill_lat"] = CHENNAI_SCENARIO.spill_lat
+            st.session_state["spill_lon"] = CHENNAI_SCENARIO.spill_lon
+            st.session_state["current_scene_name"] = "Chennai Port Outer Anchorage (512x512)"
+            st.session_state["demo_step"] = 1
+            st.session_state["auto_run"] = True
+            st.rerun()
+
+    # Bottom Operational Presets
+    st.markdown("<br><hr style='border-color:rgba(255,255,255,0.06); margin:32px 0 24px 0;'>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-family:var(--font-mono); font-size:11px; color:#64748b; margin-bottom:12px;'>QUICK CALIBRATED SCENARIO ANCHORS</div>", unsafe_allow_html=True)
+
+    col_sc1, col_sc2 = st.columns(2)
+    with col_sc1:
+        if st.button("⚡ Mount Chennai Confirmed Incident (Bay of Bengal)", key="landing_sc_chennai", use_container_width=True):
+            st.session_state["app_mode"] = "demo"
+            st.query_params["mode"] = "demo"
+            st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
+            st.session_state["spill_lat"] = CHENNAI_SCENARIO.spill_lat
+            st.session_state["spill_lon"] = CHENNAI_SCENARIO.spill_lon
+            st.session_state["current_scene_name"] = "Chennai Port Outer Anchorage (512x512)"
+            st.session_state["demo_step"] = 1
+            st.session_state["auto_run"] = True
+            st.rerun()
+    with col_sc2:
+        if st.button("🛡️ Mount Istanbul Negative Control (Bosphorus Strait)", key="landing_sc_istanbul", use_container_width=True):
+            st.session_state["app_mode"] = "live"
+            st.query_params["mode"] = "live"
+            st.session_state["active_image_path"] = "data/test_sar_scene.jpg"
+            st.session_state["spill_lat"] = 41.1100
+            st.session_state["spill_lon"] = 29.0500
+            st.session_state["current_scene_name"] = "Istanbul Bosphorus Strait (1222x1600)"
+            st.session_state["auto_run"] = True
+            st.rerun()
+
+
+# =========================================================================
+# LIVE OPERATIONS SCREEN
+# =========================================================================
+def render_live_operations_screen(final_state, is_demo, spill_lat, spill_lon, active_image):
+    live_tabs = st.tabs([
+        "🛰️ Tactical Map & Radar",
+        "🚢 Fleet Intelligence",
+        "🔬 Sensor Analysis",
+        "⏱️ Ocean Dynamics",
+        "📋 Regulatory Reports",
+        "📁 Ingestion & Feeds",
+    ])
+
+    with live_tabs[0]:
+        render_overview_tab(final_state, is_demo, spill_lat, spill_lon)
+    with live_tabs[1]:
+        render_ais_tab(final_state, is_demo)
+    with live_tabs[2]:
+        sub_sar1, sub_sar2 = st.tabs(["🔬 SAR Detection & Consensus", "📡 Radar Filter Calibration"])
+        with sub_sar1:
+            render_sar_tab(final_state, is_demo, spill_lat, spill_lon, active_image)
+        with sub_sar2:
+            render_calibration_tab(final_state, is_demo, active_image)
+    with live_tabs[3]:
+        sub_drift1, sub_drift2 = st.tabs(["⏱️ Drift Trajectory & Hindcast", "🛡️ Shoreline Threat & ESI"])
+        with sub_drift1:
+            render_drift_tab(final_state, is_demo)
+        with sub_drift2:
+            render_risk_tab(final_state, is_demo)
+    with live_tabs[4]:
+        render_reports_tab(final_state, is_demo)
+    with live_tabs[5]:
+        render_ingestion_panel()
+
+
+# =========================================================================
+# GUIDED DEMO EVALUATION SCREEN (5-STEP SIH JURY STORYTELLING WORKFLOW)
+# =========================================================================
+def render_demo_screen(final_state, is_demo, spill_lat, spill_lon, active_image):
+    # Ensure active demo scenario is loaded if not already present
+    if not final_state:
+        st.info("ℹ️ Initializing Chennai Incident intelligence pipeline...")
+        st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
+        st.session_state["spill_lat"] = CHENNAI_SCENARIO.spill_lat
+        st.session_state["spill_lon"] = CHENNAI_SCENARIO.spill_lon
+        st.session_state["current_scene_name"] = "Chennai Port Outer Anchorage (512x512)"
+        st.session_state["trigger_pipeline_run"] = True
+        st.rerun()
+
+    if "demo_step" not in st.session_state:
+        st.session_state["demo_step"] = 1
+    current_step = st.session_state["demo_step"]
+
+    steps = [
+        {"idx": 1, "title": "SAR Detection & Consensus", "tag": "STEP 01"},
+        {"idx": 2, "title": "AIS Vessel Attribution", "tag": "STEP 02"},
+        {"idx": 3, "title": "Origin Hindcast Backtrack", "tag": "STEP 03"},
+        {"idx": 4, "title": "Forward Drift & Coastal Risk", "tag": "STEP 04"},
+        {"idx": 5, "title": "Incident Dossier & PDF", "tag": "STEP 05"},
+    ]
+
+    st.markdown("### 🧪 Guided Forensic Investigation Walkthrough")
+    st.caption("Evaluation sequence designed for SIH jury and maritime operators — 5 interconnected stages of automated forensic intelligence.")
+
+    # Stepper selector pills
+    step_cols = st.columns(len(steps))
+    for i, s in enumerate(steps):
+        with step_cols[i]:
+            is_active = (s["idx"] == current_step)
+            is_completed = (s["idx"] < current_step)
+            btn_type = "primary" if is_active else "secondary"
+            check_icon = "✓ " if is_completed else ("● " if is_active else f"{s['idx']} ")
+            if st.button(f"{check_icon}{s['title']}", key=f"demo_step_btn_{s['idx']}", type=btn_type, use_container_width=True):
+                st.session_state["demo_step"] = s["idx"]
+                st.rerun()
+
+    st.markdown("<hr style='border-color:rgba(255,255,255,0.06); margin:16px 0 20px 0;'>", unsafe_allow_html=True)
+
+    if current_step == 1:
+        st.markdown("""
+        <div class="demo-narrative-box">
+            <strong style="color:#00e5ff;">PHASE 1 // SAR DETECTION & MULTI-TIER CONSENSUS VERIFICATION:</strong>
+            Sentinel-1A C-band SAR pass acquired over Chennai Port Outer Anchorage. 
+            Deep learning (YOLOv8) proposes dark candidate regions. To eliminate lookalikes (calm waters, biogenic slicks, land shadows), 
+            the 3-tier Classical Consensus Engine validates radar backscatter damping, Otsu/K-means segmentation, and marine domain masking.
+        </div>
+        """, unsafe_allow_html=True)
+        render_sar_tab(final_state, is_demo=True, spill_lat=spill_lat, spill_lon=spill_lon, active_image=active_image)
+
+    elif current_step == 2:
+        st.markdown("""
+        <div class="demo-narrative-box">
+            <strong style="color:#00e5ff;">PHASE 2 // AIS FLEET CORRELATION & CANDIDATE ATTRIBUTION:</strong>
+            Fuses historical AIS broadcast archives with the observed spill footprint. Calculates spatiotemporal proximity, 
+            heading consistency, speed anomalies, and drift alignment to produce transparent, mathematical culpability scores.
+            Notice how <strong>MT Ocean Pioneer (MMSI: 413289000)</strong> scores 87.4% due to coincident presence and loitering.
+        </div>
+        """, unsafe_allow_html=True)
+        render_ais_tab(final_state, is_demo=True)
+
+    elif current_step == 3:
+        st.markdown("""
+        <div class="demo-narrative-box">
+            <strong style="color:#00e5ff;">PHASE 3 // HYDRODYNAMIC ADVECTION HINDCAST (BACKTRACKING):</strong>
+            Because oil drifts downwind and with ocean currents between release and satellite overpass, we reverse-integrate 
+            the Euler advection equations using regional INCOIS / GFS currents (0.48 m/s @ 118°) and 3% windage. 
+            This backtracks the slick 180 minutes to its origin point (13.1380°N, 80.3710°E), which directly intersects the suspect vessel's track.
+        </div>
+        """, unsafe_allow_html=True)
+        render_drift_tab(final_state, is_demo=True)
+
+    elif current_step == 4:
+        st.markdown("""
+        <div class="demo-narrative-box">
+            <strong style="color:#00e5ff;">PHASE 4 // FORWARD TRAJECTORY FORECAST & SHORELINE IMPACT (ESI):</strong>
+            Projects the 48-hour forward drift envelope to compute time-to-beach and evaluate Environmental Sensitivity Index (ESI) 
+            risk. Pinpoints high-priority vulnerable zones (Chennai Port harbor basin, Marina Beach turtle nesting shores, Ennore Creek mangroves) 
+            for targeted boom containment.
+        </div>
+        """, unsafe_allow_html=True)
+        render_risk_tab(final_state, is_demo=True)
+
+    elif current_step == 5:
+        st.markdown("""
+        <div class="demo-narrative-box">
+            <strong style="color:#00e5ff;">PHASE 5 // TAMPER-EVIDENT REGULATORY DOSSIER & PDF DISPATCH:</strong>
+            Synthesizes all multi-spectral sensor telemetry, mathematical consensus proof, AIS vessel telemetry, and forecast models 
+            into an official, cryptographically hashed incident dossier for the Indian Coast Guard and Directorate General of Shipping.
+        </div>
+        """, unsafe_allow_html=True)
+        render_reports_tab(final_state, is_demo=True)
+
+    # Bottom Step Stepper Navigation
+    st.markdown("<br><hr style='border-color:rgba(255,255,255,0.06); margin:24px 0 16px 0;'>", unsafe_allow_html=True)
+    col_nav1, col_nav2, col_nav3 = st.columns([3, 4, 3])
+    with col_nav1:
+        if current_step > 1:
+            if st.button("◀ PREVIOUS STEP", key="demo_btn_prev", use_container_width=True):
+                st.session_state["demo_step"] = current_step - 1
+                st.rerun()
+    with col_nav2:
+        st.markdown(f"<div style='text-align:center; font-family:var(--font-mono); font-size:12px; color:#94a3b8; padding-top:8px;'>STAGE {current_step} OF {len(steps)}: {steps[current_step-1]['title'].upper()}</div>", unsafe_allow_html=True)
+    with col_nav3:
+        if current_step < len(steps):
+            if st.button("NEXT STEP ▶", key="demo_btn_next", type="primary", use_container_width=True):
+                st.session_state["demo_step"] = current_step + 1
+                st.rerun()
+        else:
+            if st.button("🛰️ OPEN IN LIVE OPERATIONS", key="demo_btn_finish", type="primary", use_container_width=True):
+                st.session_state["app_mode"] = "live"
+                st.query_params["mode"] = "live"
+                st.rerun()
+
+
+# ──────────────────────────────────────────────────────────────
+# MAIN APPLICATION ROUTING CONTROLLER
+# ──────────────────────────────────────────────────────────────
+final_state = st.session_state.get("pipeline_result")
+active_image = st.session_state.get("active_image_path")
+
+if app_mode == "landing":
+    render_landing_screen()
+elif app_mode == "demo":
+    render_demo_screen(final_state, is_demo=True, spill_lat=spill_lat, spill_lon=spill_lon, active_image=active_image)
+else:
+    render_live_operations_screen(final_state, is_demo=is_demo, spill_lat=spill_lat, spill_lon=spill_lon, active_image=active_image)
