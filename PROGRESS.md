@@ -130,3 +130,37 @@
   - `SIH_DEMO_SCRIPT.md`: 5-minute timed presentation script.
   - `JURY_QA.md`: Technically rigorous, honest answers to the 18 most difficult jury questions.
 
+### 5. Phase X — Research Repository Integration & Classical Consensus (COMPLETE)
+- Integrated algorithms and concepts from the project owner's SAR oil spill research repository (`Dhanush024/Oil-Spill-Detection-in-SAR-images`):
+  - **Land/Sea Masking (`sar/landmask.py`)**:
+    - Wiener/Gaussian filtering, unsharp masking, and adaptive Otsu / percentile thresholding (from `land_mask.m` & `automatic_threshold_for_land.m`).
+    - Morphological closing/opening with disk structuring elements and complete contour hole filling (`imfill` holes).
+    - Hard ocean boundary constraints: `intersect_with_ocean` guarantees candidate spills cannot bleed into terrestrial land.
+  - **Independent Classical Validation Layer (`sar/classical.py`)**:
+    - Local adaptive Gaussian thresholding (`local_threshold.m`)
+    - K-Means intensity clustering separating darkest spill clusters from bright land (`kmeansSegment.m` & `kmeansSegment_for_land.m`)
+    - Automatic thresholding (`automatic_threshold.m`)
+    - Dark-spot feature extraction with area and contrast filtering (`superpixel.m`)
+    - Fuzzy-logic gradient edge detection with Sobel operators and sigmoidal fuzzy membership (`fuzzy_edgeDetect.m`)
+    - Superpixel oversegmentation and patch grouping (`superpixel.m`)
+  - **Interpretable Multi-Signal Consensus Engine (`validate_consensus`)**:
+    - Evaluates YOLO confidence, classical agreement (IoU + vote support), land/sea consistency, morphology consistency (solidity/elongation), damping contrast ratio ($\mu_{\text{slick}} / \mu_{\text{ocean}}$), and look-alike risk.
+    - Emits one of 5 standardized validation statuses:
+      1. `CONFIRMED BY MULTIPLE SIGNALS`
+      2. `PROBABLE`
+      3. `INCONCLUSIVE`
+      4. `LIKELY LOOK-ALIKE`
+      5. `REJECTED`
+  - **Ground-Truth Evaluation vs. Classical Reference (`sar/metrics.py`)**:
+    - Implemented Boundary F-score (BF score, `_boundary_f_score`) matching MATLAB `bfscore` with distance error tolerance $\theta$.
+    - Strictly decoupled `evaluate_against_classical_reference` (consensus agreement) from `evaluate_against_ground_truth` (benchmark accuracy).
+  - **Qualitative 6-Panel Diagnostic Visualization (`generate_diagnostic_panels`)**:
+    - Generates 6-panel composite: `1. ORIGINAL SAR | 2. YOLO MASK | 3. CLASSICAL MASK | 4. LAND/SEA MASK | 5. FINAL VALIDATED MASK | 6. OVERLAY`.
+    - Integrated interactive diagnostic expander in Streamlit UI (`app.py`).
+  - **Before vs After Verification on Difficult Scene (`data/test_sar_scene.jpg`)**:
+    - *Before*: YOLO generated an erroneous 488,841-pixel polygon over urban Istanbul landmass with distorted seam lines.
+    - *After*: Evaluated as `REJECTED` (90.9% land overlap, backscatter contrast ratio 1.84 >= 1.0); clean operational overlay with zero red land artifacts.
+    - *Demo Patch (`demo/demo_sar_patch.png`)*: Correctly evaluated as `CONFIRMED BY MULTIPLE SIGNALS` for the true marine slick while filtering background tile box.
+  - **Automated Test Suite**: Expanded from 70 to **87 passing tests** (`87 passed in 11.27s`).
+
+
