@@ -1741,6 +1741,45 @@ def render_command_palette(spill_lat: float, spill_lon: float, source_lat: float
             flyLeafletMap(c.sourceLat, c.sourceLon, 13);
             showToast('📍 FOCUS ORIGIN', `Camera locked on estimated source origin [${c.sourceLat.toFixed(4)}°N, ${c.sourceLon.toFixed(4)}°E]`);
           }
+        },
+        {
+          id: 'enter_live_mode',
+          icon: '🛰️',
+          title: 'Enter Live Operations',
+          desc: 'Switch to Live Tactical Command Center with real-time map & AIS fleet radar',
+          category: 'Navigation & Modes',
+          badge: 'MODE',
+          keywords: ['live', 'live operations', 'live ops', 'command center', 'realtime'],
+          action: () => {
+            clickButtonByText('Live Operations') || clickButtonByText('ENTER LIVE OPERATIONS');
+            showToast('🛰️ LIVE OPERATIONS', 'Switching to Live Satellite Operations Center');
+          }
+        },
+        {
+          id: 'launch_demo_mode',
+          icon: '🧪',
+          title: 'Launch Guided Demo',
+          desc: 'Switch to curated 5-step investigative narrative of Chennai spill',
+          category: 'Navigation & Modes',
+          badge: 'MODE',
+          keywords: ['demo', 'guided demo', 'evaluation', 'walkthrough', 'chennai demo'],
+          action: () => {
+            clickButtonByText('Guided Demo') || clickButtonByText('LAUNCH GUIDED DEMO');
+            showToast('🧪 GUIDED DEMO', 'Switching to 5-Step Guided Demo Evaluation Mode');
+          }
+        },
+        {
+          id: 'go_home',
+          icon: '🏠',
+          title: 'Go to Home Portal',
+          desc: 'Return to minimal landing screen and operations portal',
+          category: 'Navigation & Modes',
+          badge: 'NAV',
+          keywords: ['home', 'landing', 'portal', 'main', 'start'],
+          action: () => {
+            clickButtonByText('Home Portal');
+            showToast('🏠 HOME PORTAL', 'Returning to main portal landing screen');
+          }
         }
       ];
 

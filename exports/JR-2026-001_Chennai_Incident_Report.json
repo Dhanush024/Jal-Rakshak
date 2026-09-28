@@ -1,0 +1,691 @@
+{
+  "incident_id": "JR-20260928-183114",
+  "generated_at": "2026-09-28T18:31:14.212297+00:00",
+  "sections": [
+    {
+      "title": "Detection Summary",
+      "data_classification": "SIMULATED",
+      "content": {
+        "spill_detected": true,
+        "num_detections": 1,
+        "total_detections": 2,
+        "validation_status": "CONFIRMED BY MULTIPLE SIGNALS",
+        "detections": [
+          {
+            "detection_id": 1,
+            "confidence": 0.4823,
+            "polygon_points": 189,
+            "bbox": [
+              187,
+              169,
+              351,
+              317
+            ],
+            "centroid_px": [
+              267.6,
+              241.1
+            ],
+            "pixel_area": 17949.0,
+            "geo_area_sq_km": 1.7949,
+            "centroid_geo": null,
+            "detection_timestamp": "2026-09-14T15:30:00+00:00",
+            "tile_id": null,
+            "source_file": "C:\\Coding\\Jal-Rakshak\\demo\\demo_sar_patch.png",
+            "is_valid_marine": true,
+            "rejection_reason": null,
+            "mean_intensity": 43.54,
+            "validation_status": "CONFIRMED BY MULTIPLE SIGNALS",
+            "consensus": {
+              "yolo_confidence": 0.4823,
+              "classical_agreement": 0.6041,
+              "look_alike_risk": 0.35,
+              "land_sea_consistency": 1.0,
+              "morphology_consistency": 0.6,
+              "contrast_ratio": 0.317,
+              "final_validation_status": "CONFIRMED BY MULTIPLE SIGNALS",
+              "overlap_score": 0.2082,
+              "explanation": "Confirmed: Strong multi-signal agreement (YOLO 48%, classical agreement 60%, dark damping ratio 0.32).",
+              "method_results": [
+                {
+                  "method": "adaptive_threshold",
+                  "num_regions": 982,
+                  "total_area_px": 86487.0,
+                  "processing_time_ms": 9.8,
+                  "parameters": {
+                    "block_size": 51,
+                    "C": 10
+                  }
+                },
+                {
+                  "method": "kmeans",
+                  "num_regions": 1,
+                  "total_area_px": 20104.0,
+                  "processing_time_ms": 187.7,
+                  "parameters": {
+                    "k": 4,
+                    "darkest_center": 45.38160705566406,
+                    "clusters_used": 1
+                  }
+                },
+                {
+                  "method": "dark_spot",
+                  "num_regions": 1,
+                  "total_area_px": 259220.0,
+                  "processing_time_ms": 5.0,
+                  "parameters": {
+                    "percentile": 15.0,
+                    "threshold_value": 63.0
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "all_detections": [
+          {
+            "detection_id": 0,
+            "confidence": 0.6216,
+            "polygon_points": 4,
+            "bbox": [
+              2,
+              3,
+              512,
+              425
+            ],
+            "centroid_px": [
+              256.7,
+              212.5
+            ],
+            "pixel_area": 210316.0,
+            "geo_area_sq_km": 21.0316,
+            "centroid_geo": null,
+            "detection_timestamp": "2026-09-14T15:30:00+00:00",
+            "tile_id": null,
+            "source_file": "C:\\Coding\\Jal-Rakshak\\demo\\demo_sar_patch.png",
+            "is_valid_marine": false,
+            "rejection_reason": "Rejected: Coverage (80.2%) exceeds maximum marine spill threshold.",
+            "mean_intensity": 136.46,
+            "validation_status": "REJECTED",
+            "consensus": {
+              "yolo_confidence": 0.6216,
+              "classical_agreement": 0.3248,
+              "look_alike_risk": 0.75,
+              "land_sea_consistency": 1.0,
+              "morphology_consistency": 0.4,
+              "contrast_ratio": 0.995,
+              "final_validation_status": "REJECTED",
+              "overlap_score": 0.3133,
+              "explanation": "Rejected: Coverage (80.2%) exceeds maximum marine spill threshold.",
+              "method_results": [
+                {
+                  "method": "adaptive_threshold",
+                  "num_regions": 982,
+                  "total_area_px": 86487.0,
+                  "processing_time_ms": 13.2,
+                  "parameters": {
+                    "block_size": 51,
+                    "C": 10
+                  }
+                },
+                {
+                  "method": "kmeans",
+                  "num_regions": 1,
+                  "total_area_px": 20077.0,
+                  "processing_time_ms": 183.9,
+                  "parameters": {
+                    "k": 4,
+                    "darkest_center": 45.31825256347656,
+                    "clusters_used": 1
+                  }
+                },
+                {
+                  "method": "dark_spot",
+                  "num_regions": 1,
+                  "total_area_px": 259220.0,
+                  "processing_time_ms": 5.1,
+                  "parameters": {
+                    "percentile": 15.0,
+                    "threshold_value": 63.0
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "detection_id": 1,
+            "confidence": 0.4823,
+            "polygon_points": 189,
+            "bbox": [
+              187,
+              169,
+              351,
+              317
+            ],
+            "centroid_px": [
+              267.6,
+              241.1
+            ],
+            "pixel_area": 17949.0,
+            "geo_area_sq_km": 1.7949,
+            "centroid_geo": null,
+            "detection_timestamp": "2026-09-14T15:30:00+00:00",
+            "tile_id": null,
+            "source_file": "C:\\Coding\\Jal-Rakshak\\demo\\demo_sar_patch.png",
+            "is_valid_marine": true,
+            "rejection_reason": null,
+            "mean_intensity": 43.54,
+            "validation_status": "CONFIRMED BY MULTIPLE SIGNALS",
+            "consensus": {
+              "yolo_confidence": 0.4823,
+              "classical_agreement": 0.6041,
+              "look_alike_risk": 0.35,
+              "land_sea_consistency": 1.0,
+              "morphology_consistency": 0.6,
+              "contrast_ratio": 0.317,
+              "final_validation_status": "CONFIRMED BY MULTIPLE SIGNALS",
+              "overlap_score": 0.2082,
+              "explanation": "Confirmed: Strong multi-signal agreement (YOLO 48%, classical agreement 60%, dark damping ratio 0.32).",
+              "method_results": [
+                {
+                  "method": "adaptive_threshold",
+                  "num_regions": 982,
+                  "total_area_px": 86487.0,
+                  "processing_time_ms": 9.8,
+                  "parameters": {
+                    "block_size": 51,
+                    "C": 10
+                  }
+                },
+                {
+                  "method": "kmeans",
+                  "num_regions": 1,
+                  "total_area_px": 20104.0,
+                  "processing_time_ms": 187.7,
+                  "parameters": {
+                    "k": 4,
+                    "darkest_center": 45.38160705566406,
+                    "clusters_used": 1
+                  }
+                },
+                {
+                  "method": "dark_spot",
+                  "num_regions": 1,
+                  "total_area_px": 259220.0,
+                  "processing_time_ms": 5.0,
+                  "parameters": {
+                    "percentile": 15.0,
+                    "threshold_value": 63.0
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "image_shape": [
+          512,
+          512,
+          3
+        ],
+        "model_name": "best.pt",
+        "inference_time_ms": 4922.3,
+        "source_file": "C:\\Coding\\Jal-Rakshak\\demo\\demo_sar_patch.png"
+      }
+    },
+    {
+      "title": "Spill Characterization",
+      "data_classification": "SIMULATED",
+      "content": {
+        "centroid_px": [
+          267.6,
+          241.1
+        ],
+        "perimeter_px": 517.5,
+        "area_px": 17725.5,
+        "length_px": 180.3,
+        "width_px": 125.6,
+        "aspect_ratio": 1.44,
+        "orientation_deg": 124.9,
+        "num_connected_regions": 1,
+        "is_fragmented": false,
+        "convexity": 0.985,
+        "solidity": 0.985,
+        "pixel_resolution_m": 10.0,
+        "area_sq_km": 1.77255,
+        "perimeter_km": 5.1749,
+        "length_km": 1.8028,
+        "width_km": 1.2559,
+        "volume_estimation_method": "empirical",
+        "estimated_volume_tons": 753.33,
+        "volume_note": "Estimated using empirical thickness assumption (0.1-1.0 mm). This is NOT a measured quantity. Actual volume depends on oil type, weathering, and spill dynamics.",
+        "centroid_lat": 12.45,
+        "centroid_lon": 80.23
+      }
+    },
+    {
+      "title": "Spill Age & Weathering Dynamics",
+      "data_classification": "INFERRED",
+      "content": {
+        "status": "ESTIMATED",
+        "estimated_age_range_hours": [
+          0.5,
+          2.5
+        ],
+        "best_estimate_hours": 1.2,
+        "confidence": 0.65,
+        "evidence_method": "fay_morphology_heuristic",
+        "supporting_evidence": [
+          "Observed aspect ratio: 1.44 (Major axis 1.80 km / Minor axis 1.26 km).",
+          "Observed contour solidity: 0.985, fragmentation count: 1 patches.",
+          "Compact, unfragmented morphology indicates fresh spill in active gravity-viscous expansion.",
+          "Surface wind speed (6.2 m/s) consistent with observed slick elongation."
+        ],
+        "uncertainty_factors": [
+          "Single-scene estimation: no prior satellite pass available to verify release start time.",
+          "Oil physical properties (API gravity, pour point, viscosity) are unmeasured.",
+          "Age range derived from empirical morphological rules and Fay spreading regimes."
+        ],
+        "fay_regime": "gravity_viscous"
+      }
+    },
+    {
+      "title": "Detection Validation",
+      "data_classification": "INFERRED",
+      "content": {
+        "yolo_confidence": 0.4823,
+        "classical_agreement": 0.6041,
+        "look_alike_risk": 0.35,
+        "land_sea_consistency": 1.0,
+        "morphology_consistency": 0.6,
+        "contrast_ratio": 0.317,
+        "final_validation_status": "CONFIRMED BY MULTIPLE SIGNALS",
+        "overlap_score": 0.2082,
+        "explanation": "Confirmed: Strong multi-signal agreement (YOLO 48%, classical agreement 60%, dark damping ratio 0.32).",
+        "method_results": [
+          {
+            "method": "adaptive_threshold",
+            "num_regions": 982,
+            "total_area_px": 86487.0,
+            "processing_time_ms": 10.5,
+            "parameters": {
+              "block_size": 51,
+              "C": 10
+            }
+          },
+          {
+            "method": "kmeans",
+            "num_regions": 1,
+            "total_area_px": 20104.0,
+            "processing_time_ms": 176.9,
+            "parameters": {
+              "k": 4,
+              "darkest_center": 45.38160705566406,
+              "clusters_used": 1
+            }
+          },
+          {
+            "method": "dark_spot",
+            "num_regions": 1,
+            "total_area_px": 259220.0,
+            "processing_time_ms": 5.3,
+            "parameters": {
+              "percentile": 15.0,
+              "threshold_value": 63.0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "title": "Source Reconstruction (Hindcast)",
+      "data_classification": "PREDICTED",
+      "content": {
+        "origin_lat": 12.4635,
+        "origin_lon": 80.2085,
+        "origin_time": "2026-09-14T14:20:00+00:00",
+        "origin_time_str": "14:20 UTC",
+        "destination_lat": 12.45,
+        "destination_lon": 80.23,
+        "destination_time": "2026-09-14T15:30:00+00:00",
+        "total_distance_km": 2.971,
+        "temporal_uncertainty_min": 36.0,
+        "spatial_uncertainty_km": 1.0,
+        "current_speed_ms": 0.48,
+        "current_bearing_deg": 118.0,
+        "wind_speed_ms": 6.2,
+        "wind_bearing_deg": 135.0,
+        "method": "euler",
+        "direction": "hindcast",
+        "num_trajectory_points": 15
+      }
+    },
+    {
+      "title": "Probable Source Likelihood Surface",
+      "data_classification": "INFERRED",
+      "content": {
+        "peak_location": "12.4631, 80.2092",
+        "dispersion_sigma_km": 0.5,
+        "p50_radius_km": 0.59,
+        "p95_radius_km": 1.22,
+        "core_area_sq_km": 1.09,
+        "uncertainty_statement": "Probable source region modeled with Gaussian dispersion \u03c3 = 0.5 km. Core 50% confidence area is 1.1 km\u00b2; 95% boundary extends 1.2 km from peak. Surface accounts for current shear and turbulent diffusion. Does NOT represent exact physical boundaries."
+      }
+    },
+    {
+      "title": "Candidate Vessel Analysis",
+      "data_classification": "INFERRED",
+      "content": {
+        "candidates": [
+          {
+            "mmsi": "419001234",
+            "name": "MT Sea Falcon",
+            "score": 53.7,
+            "breakdown": {
+              "spatial": 65.4,
+              "temporal": 4.5,
+              "trajectory": 100,
+              "heading": 49.9,
+              "speed": 80,
+              "drift_consistency": 70,
+              "behavioral": 50
+            },
+            "trajectory_match": true,
+            "time_match": false,
+            "spatial_match": true,
+            "drift_consistency": true,
+            "evidence_summary": [
+              "Trajectory intersects probable source region"
+            ],
+            "uncertainty_notes": [
+              "Time difference (107 min) exceeds typical window",
+              "Association score reflects spatial/temporal/trajectory evidence only",
+              "This does NOT constitute proof of liability"
+            ],
+            "disclaimer": "This is an ASSOCIATION SCORE for decision support only. It does NOT constitute proof of liability or legal attribution."
+          },
+          {
+            "mmsi": "419005678",
+            "name": "MV Ocean Star",
+            "score": 48.5,
+            "breakdown": {
+              "spatial": 49.6,
+              "temporal": 0,
+              "trajectory": 100,
+              "heading": 50.9,
+              "speed": 80,
+              "drift_consistency": 70,
+              "behavioral": 50
+            },
+            "trajectory_match": true,
+            "time_match": false,
+            "spatial_match": true,
+            "drift_consistency": true,
+            "evidence_summary": [
+              "Trajectory intersects probable source region"
+            ],
+            "uncertainty_notes": [
+              "Time difference (136 min) exceeds typical window",
+              "Association score reflects spatial/temporal/trajectory evidence only",
+              "This does NOT constitute proof of liability"
+            ],
+            "disclaimer": "This is an ASSOCIATION SCORE for decision support only. It does NOT constitute proof of liability or legal attribution."
+          },
+          {
+            "mmsi": "538003210",
+            "name": "MV Eastern Wind",
+            "score": 39.9,
+            "breakdown": {
+              "spatial": 31.4,
+              "temporal": 0,
+              "trajectory": 100,
+              "heading": 50.4,
+              "speed": 80,
+              "drift_consistency": 30,
+              "behavioral": 50
+            },
+            "trajectory_match": true,
+            "time_match": false,
+            "spatial_match": true,
+            "drift_consistency": false,
+            "evidence_summary": [
+              "Trajectory intersects probable source region"
+            ],
+            "uncertainty_notes": [
+              "Time difference (134 min) exceeds typical window",
+              "Association score reflects spatial/temporal/trajectory evidence only",
+              "This does NOT constitute proof of liability"
+            ],
+            "disclaimer": "This is an ASSOCIATION SCORE for decision support only. It does NOT constitute proof of liability or legal attribution."
+          }
+        ],
+        "disclaimer": "These are CANDIDATE vessels with ASSOCIATION SCORES. Scores reflect spatial/temporal/trajectory consistency only and do NOT constitute proof of liability."
+      }
+    },
+    {
+      "title": "Drift Prediction (Forecast)",
+      "data_classification": "PREDICTED",
+      "content": {
+        "forecasts": [
+          {
+            "origin_lat": 12.45,
+            "origin_lon": 80.23,
+            "origin_time": "2026-09-14T15:30:00+00:00",
+            "origin_time_str": "15:30 UTC",
+            "destination_lat": 12.3807,
+            "destination_lon": 80.3405,
+            "destination_time": "2026-09-14T21:30:00+00:00",
+            "total_distance_km": 14.457,
+            "temporal_uncertainty_min": 176.0,
+            "spatial_uncertainty_km": 5.1,
+            "current_speed_ms": 0.48,
+            "current_bearing_deg": 118.0,
+            "wind_speed_ms": 6.2,
+            "wind_bearing_deg": 135.0,
+            "method": "euler",
+            "direction": "forecast_6h",
+            "num_trajectory_points": 73
+          },
+          {
+            "origin_lat": 12.45,
+            "origin_lon": 80.23,
+            "origin_time": "2026-09-14T15:30:00+00:00",
+            "origin_time_str": "15:30 UTC",
+            "destination_lat": 12.3114,
+            "destination_lon": 80.4509,
+            "destination_time": "2026-09-15T03:30:00+00:00",
+            "total_distance_km": 28.715,
+            "temporal_uncertainty_min": 349.0,
+            "spatial_uncertainty_km": 10.1,
+            "current_speed_ms": 0.48,
+            "current_bearing_deg": 118.0,
+            "wind_speed_ms": 6.2,
+            "wind_bearing_deg": 135.0,
+            "method": "euler",
+            "direction": "forecast_12h",
+            "num_trajectory_points": 145
+          },
+          {
+            "origin_lat": 12.45,
+            "origin_lon": 80.23,
+            "origin_time": "2026-09-14T15:30:00+00:00",
+            "origin_time_str": "15:30 UTC",
+            "destination_lat": 12.1727,
+            "destination_lon": 80.6717,
+            "destination_time": "2026-09-15T15:30:00+00:00",
+            "total_distance_km": 57.232,
+            "temporal_uncertainty_min": 696.0,
+            "spatial_uncertainty_km": 20.0,
+            "current_speed_ms": 0.48,
+            "current_bearing_deg": 118.0,
+            "wind_speed_ms": 6.2,
+            "wind_bearing_deg": 135.0,
+            "method": "euler",
+            "direction": "forecast_24h",
+            "num_trajectory_points": 289
+          }
+        ]
+      }
+    },
+    {
+      "title": "Coastal & Environmental Impact Assessment",
+      "data_classification": "PREDICTED",
+      "content": {
+        "nearest_shoreline": "Kalpakkam",
+        "shortest_distance_km": 13.86,
+        "landfall_projected": false,
+        "eta_to_coast_hours": null,
+        "eta_uncertainty_range_hours": null,
+        "coastal_vulnerability_score": 38.8,
+        "threatened_assets_count": 1,
+        "threatened_assets": [
+          {
+            "name": "Madras Atomic Power Station (MAPS) Seawater Intake",
+            "category": "infrastructure",
+            "esi": 1,
+            "priority": "CRITICAL",
+            "distance_from_spill_km": 13.38,
+            "distance_from_corridor_km": 13.38,
+            "threat_level": "HIGH_RISK",
+            "estimated_arrival_hours": 5.6,
+            "recommended_strategy": "Rapid deployment of deep-skirt harbor containment booms and surface skimmers at canal entrance.",
+            "contact_authority": "Nuclear Power Corporation of India (NPCIL) Emergency Directorate"
+          }
+        ],
+        "containment_recommendations": [
+          "Deploy ocean containment booms at earliest daylight or calm sea state",
+          "Notify municipal desalination plant intakes and thermal cooling canals for emergency barrier inflation or intake shutdown",
+          "Position fast-response skimmers (vortex or weir type) along the predicted drift trajectory corridor"
+        ],
+        "dispersant_restrictions": [
+          "CRITICAL: Chemical dispersants prohibited within 10 km of shoreline (NEPA/CPCB guidelines)"
+        ]
+      }
+    },
+    {
+      "title": "Risk Assessment",
+      "data_classification": "INFERRED",
+      "content": {
+        "level": "MEDIUM",
+        "overall_score": 36.3,
+        "factors": [
+          {
+            "name": "Spill Area",
+            "value": 1.77255,
+            "score": 60,
+            "weight": 0.2,
+            "description": "1.773 km\u00b2 \u2014 moderate spill"
+          },
+          {
+            "name": "Detection Confidence",
+            "value": 0.48230648040771484,
+            "score": 48.2,
+            "weight": 0.1,
+            "description": "0.48 \u2014 low"
+          },
+          {
+            "name": "Proximity to Coast",
+            "value": 999.0,
+            "score": 5,
+            "weight": 0.2,
+            "description": "999.0 km from nearest coastline"
+          },
+          {
+            "name": "ETA to Coast",
+            "value": 0,
+            "score": 20,
+            "weight": 0.15,
+            "description": "ETA unavailable \u2014 insufficient data for prediction"
+          },
+          {
+            "name": "Sensitive Areas",
+            "value": 1,
+            "score": 60,
+            "weight": 0.15,
+            "description": "1 sensitive area(s) within predicted impact zone"
+          },
+          {
+            "name": "Growth Rate",
+            "value": 0.0,
+            "score": 10,
+            "weight": 0.1,
+            "description": "0.000 km\u00b2/hr"
+          },
+          {
+            "name": "Environmental Conditions",
+            "value": 6.2,
+            "score": 55.0,
+            "weight": 0.1,
+            "description": "Wind: 6.2 m/s, Current: 0.48 m/s"
+          }
+        ],
+        "recommendations": [
+          "Protect sensitive areas with boom deployment"
+        ],
+        "alert_required": true,
+        "alert_priority": "standard"
+      }
+    },
+    {
+      "title": "Alerts Generated",
+      "data_classification": "OBSERVED",
+      "content": {
+        "incident_id": "JR-20260928-183114",
+        "total_alerts": 2,
+        "alerts": [
+          {
+            "alert_id": "COMM-20260928183114",
+            "timestamp": "2026-09-28T18:31:14.209892+00:00",
+            "priority": "standard",
+            "target": "coastal_residents",
+            "channels": [
+              "dashboard",
+              "sms"
+            ],
+            "title": "Marine Pollution Alert",
+            "message": "Potential oil spill detected near 12.4500\u00b0N, 80.2300\u00b0E. Risk level: MEDIUM. Monitor for updates.",
+            "location": "12.4500\u00b0N, 80.2300\u00b0E",
+            "predicted_impact_zone": "",
+            "eta_hours": null,
+            "risk_level": "MEDIUM",
+            "recommended_action": "Monitor official updates. Avoid affected waters.",
+            "data_status": "PREDICTED / ESTIMATED",
+            "is_simulated": true,
+            "delivered": true
+          },
+          {
+            "alert_id": "AUTH-20260928183114",
+            "timestamp": "2026-09-28T18:31:14.209926+00:00",
+            "priority": "urgent",
+            "target": "authorities",
+            "channels": [
+              "dashboard",
+              "email"
+            ],
+            "title": "Oil Spill Incident Report",
+            "message": "Detected spill: 1.773 km\u00b2. Risk: MEDIUM. Candidate vessels: MT Sea Falcon, MV Ocean Star, MV Eastern Wind.",
+            "location": "12.4500\u00b0N, 80.2300\u00b0E",
+            "predicted_impact_zone": null,
+            "eta_hours": null,
+            "risk_level": "MEDIUM",
+            "recommended_action": "Initiate response protocol and investigation",
+            "data_status": "PREDICTED / ESTIMATED",
+            "is_simulated": true,
+            "delivered": true
+          }
+        ]
+      }
+    }
+  ],
+  "limitations": [
+    "Spill age estimation uses morphological elongation and Fay spreading theory. Without multi-temporal satellite passes, age bounds represent empirical approximations.",
+    "Hindcast trajectory assumes constant current/wind fields. Real conditions may vary significantly over the drift period.",
+    "Vessel attribution is probabilistic and based on available AIS data. AIS data gaps, spoofing, or incomplete coverage may affect results.",
+    "Shoreline landfall ETA depends on hydrodynamic models and wind leeway factor (0.03). Tidal flux and nearshore surf zone dynamics may modify actual arrival time.",
+    "This report is generated by an AI system for decision support. It does not independently establish legal liability.",
+    "This report was generated using SIMULATED/DEMO data. All values are synthetic and for demonstration purposes only."
+  ],
+  "data_sources": [
+    "YOLO v8 Segmentation Model",
+    "Classical SAR Analysis",
+    "Demo/Simulated Data"
+  ]
+}
