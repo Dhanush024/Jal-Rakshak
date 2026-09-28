@@ -44,7 +44,10 @@ from streamlit_folium import st_folium
 # ──────────────────────────────────────────────────────────────
 # Project imports
 # ──────────────────────────────────────────────────────────────
-from config.settings import is_demo_mode, DEMO_SPILL_LAT, DEMO_SPILL_LON
+from config.settings import (
+    is_demo_mode, DEMO_SPILL_LAT, DEMO_SPILL_LON,
+    MAP_BASEMAP, CARTO_API_KEY
+)
 from pipeline.graph import run_pipeline, compile_pipeline
 from geospatial.distance import haversine_km
 from demo.scenario import CHENNAI_SCENARIO, get_or_create_demo_sar_patch
@@ -340,11 +343,28 @@ def build_investigation_map(state, slider_minutes=0, selected_vessel_mmsi=None):
     source_lon = state.get("source_lon", spill_lon)
     uncertainty_km = state.get("source_uncertainty_km", 5.0)
 
-    fmap = folium.Map(
-        location=[source_lat, source_lon],
-        zoom_start=11,
-        tiles="CartoDB dark_matter",
-    )
+    carto_key = CARTO_API_KEY or os.getenv("CARTO_API_KEY", "")
+    use_carto = bool(carto_key) and (MAP_BASEMAP.lower() in ("cartodb_dark", "cartodb dark_matter", "cartodb"))
+
+    if use_carto:
+        tiles_url = f"https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}.png?api_key={carto_key}"
+        fmap = folium.Map(
+            location=[source_lat, source_lon],
+            zoom_start=11,
+            tiles=None,
+        )
+        folium.TileLayer(
+            tiles=tiles_url,
+            attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            name="CartoDB Dark Matter",
+        ).add_to(fmap)
+    else:
+        # Default: Standard OpenStreetMap — zero API key required, zero broken watermarks
+        fmap = folium.Map(
+            location=[source_lat, source_lon],
+            zoom_start=11,
+            tiles="OpenStreetMap",
+        )
 
     # 1. Detected Spill Marker
     folium.CircleMarker(
@@ -557,7 +577,7 @@ if active_image and os.path.exists(active_image):
             if final_state.get("spill_detected"):
                 img_cv = cv2.imread(active_image)
                 img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
-                overlay = img_cv.copy()
+                overlay = np.zeros_like(img_cv)
 
                 all_coords = final_state.get("all_spill_coords")
                 if not all_coords and final_state.get("spill_coords"):
@@ -568,17 +588,30 @@ if active_image and os.path.exists(active_image):
                     for poly in all_coords:
                         if poly and len(poly) >= 3:
                             pts = np.array(poly, np.int32).reshape((-1, 1, 2))
-                            cv2.fillPoly(overlay, [pts], (255, 0, 0))
-                            cv2.polylines(img_cv, [pts], isClosed=True, color=(255, 0, 0), thickness=2)
+                            # Mask overlay in crimson
+                            cv2.fillPoly(overlay, [pts], (255, 30, 30))
+                            # Clean boundary contour in gold
+                            cv2.polylines(img_cv, [pts], isClosed=True, color=(255, 230, 50), thickness=2)
                             total_pts += len(poly)
 
-                    cv2.addWeighted(overlay, 0.4, img_cv, 0.6, 0, img_cv)
+                    cv2.addWeighted(overlay, 0.40, img_cv, 0.60, 0, img_cv)
                     st.image(img_cv, use_container_width=True,
                              caption=f"YOLOv8 Segmentation — {len(all_coords)} valid marine slick(s) ({total_pts} boundary points)")
                 else:
                     st.info("No anomalies detected in this sector.")
             else:
-                st.info("No anomalies detected in this sector.")
+                img_cv = cv2.imread(active_image)
+                if img_cv is not None:
+                    img_rgb = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
+                    st.image(img_rgb, use_container_width=True, caption="SAR Analysis — No Valid Marine Slicks Detected")
+                st.info("No valid marine oil spill anomalies detected in this sector.")
+                # Show rejection rationale if any detection was filtered
+                det_res = final_state.get("detection_result", {})
+                all_dets = det_res.get("all_detections", [])
+                rejections = [d for d in all_dets if not d.get("is_valid_marine", True)]
+                if rejections:
+                    for rej in rejections:
+                        st.caption(f"ℹ️ Artifact #{rej.get('detection_id')}: {rej.get('rejection_reason', 'Terrestrial false positive rejected.')}")
 
         # ──── Intelligence Panel ────
         with col2:

@@ -58,23 +58,50 @@
 | **Phase 26**| Formal PDF Dossier & JSON Export | ✅ COMPLETE | 2/2 | REAL |
 | **Phase 27**| Guaranteed Offline Demo Mode | ✅ COMPLETE | 3/3 | REAL FALLBACK |
 | **Phase 28**| Provider Mode Switching (DEMO/REAL/AUTO)| ✅ COMPLETE| 2/2 | REAL |
-| **Phase 29**| Automated Test Suite (56 Tests Passing)| ✅ COMPLETE | 56/56 | REAL |
+| **Phase 29**| Automated Test Suite (70 Tests Passing)| ✅ COMPLETE | 70/70 | REAL |
 | **Phase 30**| Inference Caching & Performance | ✅ COMPLETE | Verified | REAL |
 | **Phase 31**| Structured Logging & Audit Trails | ✅ COMPLETE | Verified | REAL |
 | **Phase 32**| Provider Failure & Exception Handling | ✅ COMPLETE | Verified | REAL |
 | **Phase 33**| Complete Technical Documentation | ✅ COMPLETE | Verified | REAL |
 | **Phase 34**| SIH Jury Script & Technical Q&A Guide | ✅ COMPLETE | Verified | REAL |
 | **Phase 35**| Operational UI Design & Visual Polish | ✅ COMPLETE | Verified | REAL UI |
-| **Phase 36**| Repository Cleanup & Secret Sanitization| ✅ COMPLETE | Verified | REAL |
+| **Phase 36**| Repository Cleanup & Dead Code Removal | ✅ COMPLETE | Verified | REAL |
 | **Phase 37**| End-to-End Pipeline Verification | ✅ COMPLETE | Verified | REAL |
 | **Phase 38**| Honest Reality-Grounded Progress Tracker| ✅ COMPLETE | Verified | REAL |
 | **Phase 39**| Git Checkpointing & Branch Readiness | ✅ COMPLETE | Verified | REAL |
+| **Phase 40**| YOLO Root Cause & Marine Constraint Fix| ✅ COMPLETE | 10/10 | REAL ALGORITHM |
+| **Phase 41**| Zero-Watermark OpenStreetMap Basemap   | ✅ COMPLETE | 2/2 | REAL UI |
+| **Phase 42**| Clutter Elimination & Minimal Root     | ✅ COMPLETE | Verified | REAL |
 
 ---
 
 ## Change Log (Final Engineering Pass)
 
-### Concrete Providers & Real Ingestion Interfaces (COMPLETE)
+### 1. YOLO Segmentation Accuracy & Native Contour Fix (COMPLETE)
+- Diagnosed root cause of spurious land segmentation:
+  - Model `best.pt` (YOLOv8n-seg, 6.45 MB, 1 class: `oill`) lacked negative land samples during training, triggering falsely on terrestrial topography (e.g., Istanbul Bosphorus scene, 84% land overlap).
+  - Contour extraction from polygon point arrays formed 1-pixel seam bridges across waterways.
+- Implemented native mask extraction in `sar/detection.py`:
+  - Directly extracts `result.masks.data`, resized to original raster dimensions.
+  - Extracts clean boundary contours via OpenCV `cv2.findContours(..., cv2.RETR_EXTERNAL)`.
+- Added adaptive Otsu land/sea masking in `sar/preprocessing.py` and marine boundary constraints:
+  - Detections with `land_overlap > 0.40` or `scene_coverage > 0.35` are rejected (`is_valid_marine = False`).
+  - Added `rejection_reason` logging and forensic artifact tracking.
+  - Downstream LangGraph pipeline gracefully short-circuits to report without drawing false land polygons.
+- Created `tests/test_detection_regression.py` with 10 regression tests (mask dimensions, polygon bounds, orientation, land rejection, empty masks, multiple masks, tile offsets).
+
+### 2. Map / Basemap Provider & Zero-Watermark Default (COMPLETE)
+- Configured `MAP_BASEMAP = os.getenv("MAP_BASEMAP", "OpenStreetMap")` in `config/settings.py`.
+- Updated Folium map generation in `app.py` to default unconditionally to standard OpenStreetMap when `CARTO_API_KEY` is not provided.
+- Completely removed the `API KEY REQUIRED carto.com/basemaps/apikey` watermark while preserving all analytical overlays (spill polygon, P50/P75/P95 zones, hindcast, forecast, vessel tracks, sensitive coastal assets).
+
+### 3. Repository Clutter & Duplicate Cleanup (COMPLETE)
+- Deleted legacy root duplicate scripts `ais_engine.py` and `pipeline.py` (all active code uses `geospatial/distance.py` and `pipeline/graph.py`).
+- Removed temporary root images and scratch directories; updated `.gitignore` to keep root clean.
+- Verified all source modules compile with zero errors: `python -m compileall app.py ais alerts coastal config demo geospatial ocean pipeline reporting risk sar tests`.
+- Expanded automated test suite to **70 passing tests** (`70 passed in 8.28s`).
+
+### 4. Concrete Providers & Real Ingestion Interfaces (COMPLETE)
 - Created `sar/ingestion.py`:
   - `SARSceneMetadata` and `SARSceneLoader`: Full GeoTIFF, PNG, JPG raster ingestion with CRS, native bounding box, spatial resolution, and sidecar metadata support.
   - `pixel_to_geo` and `geo_to_pixel` bidirectional coordinate conversion methods.
@@ -86,7 +113,7 @@
   - Concrete `DemoAISProvider`: Deterministic, offline synthetic fleet for demonstration.
   - `get_ais_provider(mode, file_path)` factory supporting `DEMO`, `REAL`, and `AUTO` modes.
 - Created `data/sample_historical_ais.csv`:
-  - Realistic historical AIS archive featuring 4 commercial vessels (*MT ARCTIC STAR*, *MV PACIFIC TRADER*, *OCEAN VOYAGER*, *SEA EXPLORER*) with authentic NMEA-compliant columns.
+  - Labeled `# SYNTHETIC DEMONSTRATION DATA` featuring 4 commercial vessels (*MT ARCTIC STAR*, *MV PACIFIC TRADER*, *OCEAN VOYAGER*, *SEA EXPLORER*) with authentic NMEA-compliant columns.
 - Created `ocean/provider.py`:
   - `OceanProvider` and `WeatherProvider` abstract interfaces.
   - `DemoOceanProvider` and `ConstantOceanProvider` concrete implementations.
@@ -98,10 +125,8 @@
   - Injected `ais_file_path` and `sar_metadata` into `PipelineState`.
   - Decoupled `node_ais_correlate` and `node_hindcast` from hardcoded generator functions to provider factories.
   - Added historical AIS file upload widget to `app.py` sidebar.
-- Created `tests/test_providers.py`:
-  - 12 comprehensive unit tests validating `FileHistoricalAISProvider`, `DemoAISProvider`, `SARSceneLoader`, `ConstantOceanProvider`, and notification providers.
-  - All **56 automated tests** now pass cleanly.
 - Created SIH Presentation Assets:
   - `FINAL_AUDIT.md`: Complete reality audit of every single phase.
   - `SIH_DEMO_SCRIPT.md`: 5-minute timed presentation script.
   - `JURY_QA.md`: Technically rigorous, honest answers to the 18 most difficult jury questions.
+

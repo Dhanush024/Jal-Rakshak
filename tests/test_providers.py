@@ -195,3 +195,37 @@ class TestNotificationProviders:
         assert p_sim is not None
         p_cons = get_notification_provider(AlertChannel.CONSOLE)
         assert isinstance(p_cons, ConsoleNotificationProvider)
+
+
+class TestConfigurationAndMaps:
+    """Test map basemap configuration and API key handling."""
+
+    def test_default_basemap_is_openstreetmap_without_key(self):
+        from config.settings import MAP_BASEMAP, CARTO_API_KEY
+        # Default must not require any API key
+        assert MAP_BASEMAP == "OpenStreetMap"
+        assert CARTO_API_KEY == "" or isinstance(CARTO_API_KEY, str)
+
+    def test_validate_config_demo_mode_clean(self):
+        from config.settings import validate_config
+        # Demo mode should not require live API keys
+        warnings = validate_config()
+        # Should not raise exception
+        assert isinstance(warnings, list)
+
+
+class TestGracefulDegradation:
+    """Test graceful handling of corrupt, missing, or malformed inputs."""
+
+    def test_yolo_detector_missing_image(self):
+        from sar.detection import YOLODetector
+        detector = YOLODetector()
+        res = detector.detect("non_existent_sar_image_path.jpg")
+        assert res.spill_detected is False
+        assert len(res.detections) == 0
+
+    def test_sar_scene_loader_missing_image(self):
+        from sar.ingestion import SARSceneLoader
+        with pytest.raises(FileNotFoundError):
+            SARSceneLoader.load("non_existent_sar_image_path.tif")
+

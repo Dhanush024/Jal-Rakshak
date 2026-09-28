@@ -53,6 +53,13 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMS_API_KEY = os.getenv("SMS_API_KEY", "")
 
 # ---------------------------------------------------------------------------
+# Map / Basemap Provider
+# ---------------------------------------------------------------------------
+# OpenStreetMap is the default — completely free, reliable, zero API key required
+MAP_BASEMAP = os.getenv("MAP_BASEMAP", "OpenStreetMap")
+CARTO_API_KEY = os.getenv("CARTO_API_KEY", "")
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()

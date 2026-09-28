@@ -147,3 +147,43 @@ candidate vessel rankings, coastal defense recommendations, and formal review si
 
 **Rationale:** Provides an official, printable paper trail while embedding transparent
 disclaimers on legal non-adjudication.
+
+---
+
+## ADR-012: YOLO Native Mask Extraction & Marine Physical Boundary Constraints
+
+**Context:** On coastal SAR scenes containing large landmasses (e.g. Istanbul Bosphorus scene),
+`best.pt` (trained on a Roboflow dataset without negative land images) produced false positives over
+terrestrial land with 84% land overlap. Additionally, OpenCV contour generation via polygon point lists
+sometimes formed 1-pixel bridge artifacts across waterways.
+
+**Decision:**
+1. Replaced concatenated multi-polygon lists with native `result.masks.data` binary masks scaled
+   directly to original image dimensions and extracted via `cv2.findContours(..., cv2.RETR_EXTERNAL)`.
+2. Implemented adaptive Otsu landmasking in `sar/preprocessing.py` to robustly detect terrestrial land
+   regardless of dynamic range.
+3. Added physical marine constraints in `sar/detection.py`:
+   - Detections with `land_overlap > 0.40` or `scene_coverage > 0.35` are flagged as terrestrial
+     artifacts (`is_valid_marine = False`) with clear rejection rationales.
+   - The downstream 11-node pipeline short-circuits to report when no valid marine slicks exist,
+     preventing false attribution while logging forensic artifact diagnostics.
+
+**Rationale:** Adheres to maritime physics without artificially inverting masks or replacing YOLO
+with thresholding. Real marine slicks are preserved; landmass false alarms are scientifically rejected.
+
+---
+
+## ADR-013: Basemap Provider Architecture & OpenStreetMap Zero-Watermark Default
+
+**Context:** Folium map layers previously hardcoded CartoDB Dark Matter tile URLs without an API key,
+resulting in a prominent "API KEY REQUIRED carto.com/basemaps/apikey" watermark during demos.
+
+**Decision:**
+1. Configure `MAP_BASEMAP` in `config/settings.py` defaulting to `"OpenStreetMap"`.
+2. When `CARTO_API_KEY` is not provided in environment variables, the system unconditionally falls
+   back to standard OpenStreetMap, rendering all analytical overlays (spill polygon, P50/P75/P95 zones,
+   hindcast, forecast, vessel tracks, sensitive coastal assets) cleanly with zero broken watermarks.
+3. If a valid `CARTO_API_KEY` is configured, CartoDB Dark Matter tiles are loaded with authenticated queries.
+
+**Rationale:** The default demonstration mode must work 100% offline and key-free without broken UI watermarks.
+

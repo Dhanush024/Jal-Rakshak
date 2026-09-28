@@ -163,20 +163,22 @@ def histogram_equalization(image: np.ndarray, clip_limit: float = 2.0,
     return clahe.apply(image)
 
 
-def create_land_mask(image: np.ndarray, threshold: int = 200) -> np.ndarray:
+def create_land_mask(image: np.ndarray, threshold: Optional[int] = None) -> np.ndarray:
     """
-    Create a simple land mask based on intensity thresholding.
+    Create a land mask based on adaptive Otsu or intensity thresholding.
 
-    In SAR images, land generally appears bright (high backscatter) compared
-    to water. This creates a binary mask where True = likely land.
-
-    Note: This is a simplified approach. A proper land mask would use
-    coastline vector data or a DEM.
+    In SAR images, land generally appears bright (high radar backscatter) compared
+    to calm water. When threshold is None, Otsu thresholding with Gaussian blurring
+    adaptively segments terrestrial landmasses across scenes of arbitrary dynamic range.
     """
     gray = to_grayscale(image) if len(image.shape) == 3 else image
-    _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-    # Morphological closing to fill small gaps
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    if threshold is None or threshold <= 0:
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        _, mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    else:
+        _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+    # Morphological closing to fill small gaps and unify land features
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     return mask
 

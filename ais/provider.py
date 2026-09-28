@@ -229,9 +229,10 @@ class FileHistoricalAISProvider(AISProvider):
             )
 
     def _parse_csv(self, tracks: Dict[str, List[AISRecord]], warnings: List[str]):
-        """Parse standard AIS CSV file."""
+        """Parse standard AIS CSV file, skipping comments and blank lines."""
         with open(self.file_path, "r", encoding="utf-8", errors="replace") as f:
-            reader = csv.DictReader(f)
+            lines = [line for line in f if line.strip() and not line.strip().startswith("#")]
+            reader = csv.DictReader(lines)
             if not reader.fieldnames:
                 warnings.append("Empty CSV file or missing header.")
                 return

@@ -234,8 +234,24 @@ The `sar/preprocessing.py` module supports configurable filter stages:
 
 ## 7. YOLOv8 Detection & Classical Validation
 
-### Learned Detector
-Jal-Rakshak utilizes a YOLOv8-seg neural network (`best.pt`) optimized for marine dark-spot segmentation, outputting instance polygon contours, confidence scores, and bounding boxes.
+### Learned Detector Architecture & Model Details
+Jal-Rakshak utilizes a YOLOv8n-seg neural network checkpoint (`best.pt`, 6.45 MB, 1 class: `oill`) trained at 512px input resolution on SAR oil slicks. The model predicts instance segmentation masks, confidence scores, and bounding boxes.
+
+### Root-Cause Diagnosis & Physical Marine Boundary Constraints
+During forensic testing on complex coastal scenes containing large topography (e.g., Istanbul Bosphorus scene), the model triggered false activations over terrestrial land with 84% land overlap. Investigation established the root causes:
+1. **Dataset Bias:** The training dataset lacked negative coastal land scenes, leading the network to respond to high-contrast terrestrial texture.
+2. **Contour Bridging:** Multi-component polygon concatenation using coordinate lists created thin 1-pixel bridge lines across waterways.
+
+**Hardening & Scientific Solutions:**
+- **Native Mask Extraction:** Direct extraction from `result.masks.data`, resized to the exact dimensions of the original image without coordinate distortion.
+- **External Contour Tracing:** Boundaries are extracted via OpenCV `cv2.findContours(..., cv2.RETR_EXTERNAL)`, eliminating artificial seam-bridge lines.
+- **Adaptive Otsu Landmasking:** `sar/preprocessing.py` dynamically segments land irrespective of image contrast.
+- **Marine Boundary Constraints:** Slicks with terrestrial land overlap $> 40\%$ or scene coverage $> 35\%$ are classified as non-marine land artifacts (`is_valid_marine = False`), logging explicit rejection reasons.
+- **Fail-Safe Pipeline Short-Circuit:** When no valid marine slicks exist, the 11-node pipeline skips downstream attribution and reports zero marine slicks rather than drawing misleading polygons over coastlines.
+
+> [!NOTE]
+> **Independent Model Accuracy Notice**  
+> Model accuracy on independent ground truth cannot be established from the current repository because no independent ground-truth validation dataset is configured. Accuracy is validated against classical SAR cross-validation metrics on ingested scenes.
 
 ### Classical Cross-Validation (Independent Check)
 To guard against deep learning false positives and hallucinated detections, `sar/classical.py` independently runs:
@@ -243,6 +259,7 @@ To guard against deep learning false positives and hallucinated detections, `sar
 - **K-Means Clustering:** Unsupervised 3-cluster radiometric segmentation (slick, clean water, land/vessel).
 - **Mask Agreement:** Computes the Intersection-over-Union (IoU) and Sørensen-Dice coefficient between the YOLO mask and classical masks.
 - **Look-Alike Risk Engine:** Evaluates environmental indicators (e.g., surface wind $< 3$ m/s, wave shadow zones, biogenic grease films) to estimate look-alike probability.
+
 
 ---
 
@@ -515,7 +532,9 @@ cp .env.example .env
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JAL_RAKSHAK_APP_MODE` | `demo` | Toggle `demo` (offline simulation) or `live` |
+| `APP_MODE` | `demo` | Toggle `demo` (offline simulation) or `live` |
+| `MAP_BASEMAP` | `OpenStreetMap` | Default basemap provider (free, zero API key required) |
+| `CARTO_API_KEY` | *(empty)* | Optional API key for CartoDB Dark Matter basemap |
 | `AISSTREAM_API_KEY` | *(empty)* | Optional API key for live AISStream.io WebSockets |
 | `DEFAULT_PIXEL_RESOLUTION_M` | `10.0` | Default pixel scale in meters for SAR swaths |
 | `DEFAULT_CURRENT_SPEED_MS` | `0.48` | Surface ocean current speed in m/s |
@@ -546,7 +565,7 @@ streamlit run app.py
 
 ## 22. Automated Testing & Verification
 
-The repository contains an exhaustive automated test suite with **44 tests** covering all modules:
+The repository contains an exhaustive automated test suite with **70 tests** covering all modules:
 
 ```bash
 python -m pytest tests/ -v
@@ -573,7 +592,33 @@ tests/test_core.py::TestOceanHindcast::test_forecast_produces_results PASSED
 tests/test_core.py::TestRiskEngine::test_high_risk PASSED
 tests/test_core.py::TestAISFiltering::test_spatial_filter PASSED
 tests/test_core.py::TestPipelineGraph::test_pipeline_execution_full_demo PASSED
-============================= 44 passed in 7.14s ==============================
+tests/test_detection_regression.py::TestDetectionRegression::test_model_properties_and_classes PASSED
+tests/test_detection_regression.py::TestDetectionRegression::test_landmass_rejection_on_terrestrial_overlap PASSED
+tests/test_detection_regression.py::TestDetectionRegression::test_scene_coverage_rejection PASSED
+tests/test_detection_regression.py::TestDetectionRegression::test_primary_detection_selection PASSED
+tests/test_detection_regression.py::TestDetectionRegression::test_empty_mask_handling PASSED
+tests/test_detection_regression.py::TestDetectionRegression::test_multiple_detections_support PASSED
+tests/test_detection_regression.py::TestDetectionRegression::test_polygon_coordinate_bounds PASSED
+tests/test_detection_regression.py::TestDetectionRegression::test_tile_offset_math PASSED
+tests/test_detection_regression.py::TestDetectionRegression::test_normalized_to_pixel_conversion PASSED
+tests/test_detection_regression.py::TestDetectionRegression::test_detection_overlay_rendering PASSED
+tests/test_providers.py::TestAISProviders::test_demo_ais_provider_returns_tracks PASSED
+tests/test_providers.py::TestAISProviders::test_file_historical_ais_provider_loads_csv PASSED
+tests/test_providers.py::TestAISProviders::test_file_historical_ais_empty_on_missing_file PASSED
+tests/test_providers.py::TestAISProviders::test_ais_factory_mode_switching PASSED
+tests/test_providers.py::TestOceanProviders::test_demo_ocean_provider PASSED
+tests/test_providers.py::TestOceanProviders::test_constant_ocean_provider PASSED
+tests/test_providers.py::TestOceanProviders::test_ocean_factory PASSED
+tests/test_providers.py::TestSARIngestionAndProviders::test_sar_scene_loader_synthetic PASSED
+tests/test_providers.py::TestSARIngestionAndProviders::test_satellite_providers PASSED
+tests/test_providers.py::TestNotificationProviders::test_simulation_notification_provider PASSED
+tests/test_providers.py::TestNotificationProviders::test_console_notification_provider PASSED
+tests/test_providers.py::TestNotificationProviders::test_notification_factory PASSED
+tests/test_providers.py::TestConfigurationAndMaps::test_default_basemap_is_openstreetmap_without_key PASSED
+tests/test_providers.py::TestConfigurationAndMaps::test_validate_config_demo_mode_clean PASSED
+tests/test_providers.py::TestGracefulDegradation::test_yolo_detector_missing_image PASSED
+tests/test_providers.py::TestGracefulDegradation::test_sar_scene_loader_missing_image PASSED
+============================= 70 passed in 8.28s ==============================
 ```
 
 ---

@@ -33,11 +33,14 @@ env/
 Thumbs.db
 desktop.ini
 
-# ===== Application =====
+# ===== Application & Diagnostics =====
 temp_*
 *_preprocessed.png
 uploads/
 *.tmp
+diagnostics/
+scratch/
+raw_yolo_*.png
 
 # ===== Model weights (large files) =====
 # Uncomment if using Git LFS for model files:
