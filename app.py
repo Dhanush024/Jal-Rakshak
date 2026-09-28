@@ -53,7 +53,7 @@ from config.settings import (
     MAP_BASEMAP, CARTO_API_KEY
 )
 from pipeline.graph import run_pipeline, compile_pipeline
-from geospatial.distance import haversine_km, destination_point, bearing_deg
+from geospatial.distance import haversine_km, destination_point, bearing_deg, polygon_area_km2
 from demo.scenario import CHENNAI_SCENARIO, get_or_create_demo_sar_patch
 from reporting.pdf import generate_pdf_report
 from sar.detection import YOLODetector, render_detection_overlay
@@ -2285,6 +2285,30 @@ def build_investigation_map(state, slider_minutes=0, selected_vessel_mmsi=None, 
 
     Fullscreen(position="topright").add_to(fmap)
 
+    # Interactive polygon marking plugin for operator region queries
+    Draw(
+        export=False,
+        position="topleft",
+        draw_options={
+            "polyline": False,
+            "rectangle": True,
+            "circle": False,
+            "circlemarker": False,
+            "marker": False,
+            "polygon": {
+                "allowIntersection": False,
+                "showArea": True,
+                "shapeOptions": {
+                    "color": "#00e5ff",
+                    "fillColor": "#00e5ff",
+                    "fillOpacity": 0.20,
+                    "weight": 2,
+                },
+            },
+        },
+        edit_options={"edit": False, "remove": True},
+    ).add_to(fmap)
+
     # ──────────────────────────────────────────────────────────
     # MODE DRIFT: CINEMATIC BUT SCIENTIFICALLY RESTRAINED DISPLAY
     # ──────────────────────────────────────────────────────────
@@ -2940,6 +2964,27 @@ def build_investigation_map(state, slider_minutes=0, selected_vessel_mmsi=None, 
     fg_vessels.add_to(fmap)
     fg_coastal.add_to(fmap)
 
+    # Render active operator drawn query region if present
+    active_poly = state.get("drawn_polygon")
+    if not active_poly and "drawn_polygon" in st.session_state:
+        active_poly = st.session_state.get("drawn_polygon")
+    if active_poly and isinstance(active_poly, dict) and "coordinates" in active_poly:
+        ring = active_poly["coordinates"]
+        poly_pts = [[p[1], p[0]] for p in ring]
+        fg_query_region = folium.FeatureGroup(name="📐 Active Selected Region", show=True)
+        folium.Polygon(
+            locations=poly_pts,
+            color="#00e5ff",
+            weight=2.5,
+            fill=True,
+            fill_color="#00e5ff",
+            fill_opacity=0.22,
+            dash_array="5 5",
+            tooltip=f"Selected Region ({active_poly.get('area_km2', 0):.2f} km²)",
+            popup=f"<b>Selected Region</b><br>Area: {active_poly.get('area_km2', 0):.2f} km²<br>Bounds: [{active_poly.get('min_lat', 0):.4f}, {active_poly.get('min_lon', 0):.4f}] to [{active_poly.get('max_lat', 0):.4f}, {active_poly.get('max_lon', 0):.4f}]",
+        ).add_to(fg_query_region)
+        fg_query_region.add_to(fmap)
+
     folium.LayerControl(position="topright", collapsed=True).add_to(fmap)
 
     # Smooth camera flyTo transition script
@@ -3486,8 +3531,263 @@ with tab_overview:
         mode=active_cmd_mode,
         focus_target=st.session_state.get("map_focus"),
     )
-    # Primary Canvas: Height 580px gives dominant 65-75% visual weight
-    st_folium(fmap_cmd, height=580, use_container_width=True, key="command_center_hero_map", returned_objects=[])
+    # Primary Canvas: Height 580px gives dominant 65-75% visual weight with interactive polygon drawing
+    map_output = st_folium(
+        fmap_cmd,
+        height=580,
+        use_container_width=True,
+        key="command_center_hero_map",
+        returned_objects=["last_active_drawing", "all_drawings"],
+    )
+
+    # Process live operator drawn polygon if created
+    if map_output:
+        drawing = map_output.get("last_active_drawing")
+        if not drawing and map_output.get("all_drawings"):
+            d_list = map_output.get("all_drawings")
+            if isinstance(d_list, list) and len(d_list) > 0:
+                drawing = d_list[-1]
+        if drawing and isinstance(drawing, dict) and "geometry" in drawing:
+            coords = drawing["geometry"].get("coordinates", [])
+            if coords and len(coords) > 0 and len(coords[0]) >= 3:
+                ring = coords[0]
+                lats = [float(p[1]) for p in ring]
+                lons = [float(p[0]) for p in ring]
+                min_lat, max_lat = min(lats), max(lats)
+                min_lon, max_lon = min(lons), max(lons)
+                calc_area = polygon_area_km2(ring)
+                curr_poly = st.session_state.get("drawn_polygon")
+                if not curr_poly or abs(curr_poly.get("area_km2", 0) - calc_area) > 0.01:
+                    st.session_state["drawn_polygon"] = {
+                        "coordinates": ring,
+                        "min_lat": min_lat,
+                        "max_lat": max_lat,
+                        "min_lon": min_lon,
+                        "max_lon": max_lon,
+                        "area_km2": calc_area,
+                        "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                    }
+                    st.session_state["region_query_result"] = None
+                    st.rerun()
+
+    # Contextual Selected Region Toolbar & Action Panel
+    poly = st.session_state.get("drawn_polygon")
+    if poly:
+        st.markdown(f"""
+        <div class="glass-panel" style="padding:12px 18px; margin:10px 0 8px 0; border:1px solid rgba(0, 229, 255, 0.45); border-left:4px solid #00e5ff !important;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span class="status-pulse-sm" style="background:#00e5ff; box-shadow:0 0 10px #00e5ff;"></span>
+                    <strong style="color:#00e5ff; font-family:'JetBrains Mono'; font-size:12px; letter-spacing:0.06em;">SELECTED GEOSPATIAL REGION:</strong>
+                    <span style="font-family:'JetBrains Mono'; font-size:12px; color:#f8fafc; font-weight:700;">{poly.get('area_km2', 0):.2f} KM²</span>
+                </div>
+                <div style="font-family:'JetBrains Mono'; font-size:11px; color:#94a3b8;">
+                    BOUNDS: [{poly['min_lat']:.4f}°N, {poly['min_lon']:.4f}°E] to [{poly['max_lat']:.4f}°N, {poly['max_lon']:.4f}°E]
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        qcol1, qcol2, qcol3, qcol4 = st.columns([3, 3, 3, 2])
+        with qcol1:
+            if st.button("🚢 Query Ships in Region", key="btn_query_ships", use_container_width=True, type="secondary"):
+                ships_in_poly = []
+                tracks = final_state.get("ais_tracks", {}) if final_state else {}
+                if isinstance(tracks, dict):
+                    t_items = tracks.items()
+                elif isinstance(tracks, list):
+                    t_items = [(t.get("mmsi", str(i)), t.get("points", [])) for i, t in enumerate(tracks)]
+                else:
+                    t_items = []
+                for mmsi, recs in t_items:
+                    if recs and isinstance(recs[0], dict):
+                        for r in recs:
+                            if isinstance(r, dict) and "lat" in r and "lon" in r:
+                                lat_p, lon_p = float(r["lat"]), float(r["lon"])
+                                if poly["min_lat"] <= lat_p <= poly["max_lat"] and poly["min_lon"] <= lon_p <= poly["max_lon"]:
+                                    v_name = r.get("name", recs[0].get("name", mmsi))
+                                    ships_in_poly.append({
+                                        "mmsi": mmsi,
+                                        "name": v_name,
+                                        "lat": lat_p,
+                                        "lon": lon_p,
+                                        "speed": r.get("speed_knots", 0.0),
+                                        "heading": r.get("heading", 0.0),
+                                        "type": r.get("vessel_type", "Cargo/Tanker"),
+                                    })
+                                    break
+                st.session_state["region_query_result"] = {
+                    "type": "ships",
+                    "count": len(ships_in_poly),
+                    "items": ships_in_poly,
+                }
+                st.rerun()
+
+        with qcol2:
+            if st.button("🎯 Query Spill Activity", key="btn_query_spill", use_container_width=True, type="secondary"):
+                in_spill = (poly["min_lat"] <= spill_lat <= poly["max_lat"] and poly["min_lon"] <= spill_lon <= poly["max_lon"])
+                in_source = (poly["min_lat"] <= source_lat <= poly["max_lat"] and poly["min_lon"] <= source_lon <= poly["max_lon"])
+                char = final_state.get("characterization", {}) if final_state else {}
+                st.session_state["region_query_result"] = {
+                    "type": "spill",
+                    "centroid_inside": in_spill,
+                    "source_inside": in_source,
+                    "spill_detected": final_state.get("spill_detected", False) if final_state else False,
+                    "spill_area_sq_km": char.get("area_sq_km", final_state.get("spill_area_sq_km", 0.0) if final_state else 0.0),
+                    "validation_status": final_state.get("validation_status", "PROBABLE") if final_state else "STANDBY",
+                }
+                st.rerun()
+
+        with qcol3:
+            if st.button("📊 Analyze Region", key="btn_analyze_region", use_container_width=True, type="secondary"):
+                hind = final_state.get("hindcast_result", {}) if final_state else {}
+                coast = final_state.get("coastal_impact", {}) if final_state else {}
+                st.session_state["region_query_result"] = {
+                    "type": "analysis",
+                    "current_speed_ms": hind.get("current_speed_ms", 0.48),
+                    "current_bearing_deg": hind.get("current_bearing_deg", 118.0),
+                    "wind_speed_ms": hind.get("wind_speed_ms", 6.2),
+                    "shoreline_dist_km": coast.get("shortest_distance_to_coast_km", 8.2),
+                    "risk_tier": coast.get("risk_tier", "HIGH"),
+                }
+                st.rerun()
+
+        with qcol4:
+            if st.button("✕ Clear Region", key="btn_clear_region", use_container_width=True):
+                st.session_state["drawn_polygon"] = None
+                st.session_state["region_query_result"] = None
+                st.rerun()
+
+        # Render Query Results Box
+        res_data = st.session_state.get("region_query_result")
+        if res_data:
+            q_type = res_data.get("type")
+            if q_type == "ships":
+                v_count = res_data.get("count", 0)
+                items = res_data.get("items", [])
+                st.markdown(f"""
+                <div class="glass-panel" style="padding:12px 16px; margin:8px 0; border-left:3px solid #38bdf8 !important;">
+                    <div style="font-family:'JetBrains Mono'; font-size:12px; color:#38bdf8; font-weight:700;">
+                        IDENTIFIED {v_count} VESSELS WITHIN BOUNDING CORRIDOR
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                if items:
+                    for ship in items[:6]:
+                        st.markdown(f"""
+                        <div style="background:rgba(15, 23, 42, 0.7); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:8px 14px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <strong style="color:#f8fafc; font-size:12px;">🚢 {ship['name']}</strong>
+                                <span style="font-family:'JetBrains Mono'; font-size:11px; color:#94a3b8; margin-left:8px;">MMSI: {ship['mmsi']}</span>
+                            </div>
+                            <div style="font-family:'JetBrains Mono'; font-size:11px; color:#38bdf8;">
+                                [{ship['lat']:.4f}°N, {ship['lon']:.4f}°E] • {ship['speed']:.1f} kn
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+            elif q_type == "spill":
+                c_in = res_data.get("centroid_inside")
+                s_in = res_data.get("source_inside")
+                stat_spill = "YES // INTERSECTS CORRIDOR" if c_in else "NO // OUTSIDE CORRIDOR"
+                stat_src = "YES // ORIGIN IN CORRIDOR" if s_in else "NO // OUTSIDE CORRIDOR"
+                st.markdown(f"""
+                <div class="glass-panel" style="padding:12px 16px; margin:8px 0; border-left:3px solid #ef4444 !important;">
+                    <div style="font-family:'JetBrains Mono'; font-size:12px; color:#ef4444; font-weight:700; margin-bottom:6px;">
+                        SPILL INTERSECTION QUERY RESULTS
+                    </div>
+                    <div style="display:flex; gap:24px; font-size:12px; color:#e2e8f0; font-family:'JetBrains Mono';">
+                        <div>SPILL CENTROID: <strong style="color:#f8fafc;">{stat_spill}</strong></div>
+                        <div>REVERSE SOURCE: <strong style="color:#f8fafc;">{stat_src}</strong></div>
+                        <div>AREA: <strong style="color:#f8fafc;">{res_data.get('spill_area_sq_km', 0):.2f} KM²</strong></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            elif q_type == "analysis":
+                st.markdown(f"""
+                <div class="glass-panel" style="padding:12px 16px; margin:8px 0; border-left:3px solid #a855f7 !important;">
+                    <div style="font-family:'JetBrains Mono'; font-size:12px; color:#a855f7; font-weight:700; margin-bottom:6px;">
+                        GEOSPATIAL & OCEANOGRAPHIC REGIONAL ASSESSMENT
+                    </div>
+                    <div style="display:flex; gap:20px; font-size:12px; color:#e2e8f0; font-family:'JetBrains Mono';">
+                        <div>CURRENT: <strong style="color:#f8fafc;">{res_data.get('current_speed_ms', 0):.2f} m/s @ {res_data.get('current_bearing_deg', 0):.0f}°</strong></div>
+                        <div>WIND: <strong style="color:#f8fafc;">{res_data.get('wind_speed_ms', 0):.1f} m/s</strong></div>
+                        <div>COAST PROXIMITY: <strong style="color:#f8fafc;">{res_data.get('shoreline_dist_km', 0):.1f} KM</strong></div>
+                        <div>RISK TIER: <strong style="color:#f8fafc;">{res_data.get('risk_tier', 'N/A')}</strong></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # Contextual Candidate Vessel Drawer
+    sel_vessel_mmsi = st.session_state.get("selected_vessel_mmsi")
+    if sel_vessel_mmsi:
+        v_rec = None
+        v_track = []
+        tracks = final_state.get("ais_tracks", {}) if final_state else {}
+        if isinstance(tracks, dict) and sel_vessel_mmsi in tracks:
+            v_track = tracks[sel_vessel_mmsi]
+        elif isinstance(tracks, list):
+            for t in tracks:
+                if str(t.get("mmsi")) == str(sel_vessel_mmsi):
+                    v_track = t.get("points", [])
+                    break
+        if v_track and isinstance(v_track[0], dict):
+            v_rec = v_track[0]
+
+        cand_scores = final_state.get("candidate_scores", []) if final_state else []
+        c_info = next((c for c in cand_scores if str(c.get("mmsi")) == str(sel_vessel_mmsi)), {})
+        v_score = c_info.get("score", 0.0)
+        v_name = v_rec.get("name", f"VESSEL {sel_vessel_mmsi}") if v_rec else f"VESSEL {sel_vessel_mmsi}"
+        v_lat = v_rec.get("lat", 0.0) if v_rec else 0.0
+        v_lon = v_rec.get("lon", 0.0) if v_rec else 0.0
+        v_spd = v_rec.get("speed_knots", 0.0) if v_rec else 0.0
+        v_hdg = v_rec.get("heading", 0.0) if v_rec else 0.0
+        v_type = v_rec.get("vessel_type", "Cargo/Tanker") if v_rec else "Cargo/Tanker"
+        v_time = v_rec.get("timestamp", "2026-09-14 15:30:00 UTC") if v_rec else "2026-09-14 15:30:00 UTC"
+
+        st.markdown(f"""
+        <div class="glass-panel" style="padding:14px 18px; margin:10px 0; border:1px solid rgba(56, 189, 248, 0.45); border-left:4px solid #38bdf8 !important;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <span class="telemetry-label" style="margin:0 !important; color:#38bdf8;">CANDIDATE VESSEL INTELLIGENCE</span>
+                    <div style="font-size:18px; font-weight:800; color:#f8fafc; font-family:'JetBrains Mono'; margin-top:2px;">
+                        🚢 {v_name} <span style="font-size:12px; color:#94a3b8; font-weight:400;">(MMSI: {sel_vessel_mmsi})</span>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <span class="telemetry-label" style="margin:0 !important;">TRAJECTORY CONSISTENCY</span>
+                    <div style="font-size:20px; font-weight:800; color:#38bdf8; font-family:'JetBrains Mono';">{v_score:.0f}/100</div>
+                </div>
+            </div>
+            <div class="telemetry-grid-4" style="margin-top:10px;">
+                <div class="telemetry-metric-unit">
+                    <span class="telemetry-label">POSITION</span>
+                    <strong class="telemetry-value-sm">[{v_lat:.4f}°N, {v_lon:.4f}°E]</strong>
+                </div>
+                <div class="telemetry-metric-unit">
+                    <span class="telemetry-label">SPEED // HEADING</span>
+                    <strong class="telemetry-value-sm">{v_spd:.1f} KN // {v_hdg:.0f}°</strong>
+                </div>
+                <div class="telemetry-metric-unit">
+                    <span class="telemetry-label">VESSEL TYPE</span>
+                    <strong class="telemetry-value-sm">{v_type}</strong>
+                </div>
+                <div class="telemetry-metric-unit">
+                    <span class="telemetry-label">LAST TELEMETRY</span>
+                    <strong class="telemetry-value-sm" style="font-size:11px;">{str(v_time)[:19].replace('T', ' ')} UTC</strong>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        vbtn_col1, vbtn_col2, vbtn_col3 = st.columns([3, 3, 6])
+        with vbtn_col1:
+            if st.button("📍 Focus on Vessel", key="btn_focus_sel_vessel", use_container_width=True, type="primary"):
+                st.session_state["map_focus"] = "vessel"
+                st.rerun()
+        with vbtn_col2:
+            if st.button("✕ Close Vessel Drawer", key="btn_close_vessel_drawer", use_container_width=True):
+                st.session_state["selected_vessel_mmsi"] = None
+                st.session_state["map_focus"] = None
+                st.rerun()
 
     # ──────────────────────────────────────────────────────────
     # 4. FLOATING FOCUS & FORENSIC SCRUBBER BAR (BELOW MAP)

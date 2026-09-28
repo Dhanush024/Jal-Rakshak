@@ -54,3 +54,31 @@ def bearing_difference(bearing1: float, bearing2: float) -> float:
     """Absolute angular difference between two bearings (0-180)."""
     diff = abs(bearing1 - bearing2) % 360
     return diff if diff <= 180 else 360 - diff
+
+
+def polygon_area_km2(coordinates: list) -> float:
+    """
+    Calculate planar geodesic approximation of polygon area in square kilometers.
+    Coordinates can be GeoJSON [[lon, lat], ...] or [(lat, lon), ...].
+    """
+    if not coordinates or len(coordinates) < 3:
+        return 0.0
+    pts = []
+    for c in coordinates:
+        if isinstance(c, (list, tuple)) and len(c) >= 2:
+            pts.append((float(c[1]), float(c[0])))
+    if len(pts) < 3:
+        return 0.0
+    R = 6371.0
+    mean_lat = sum(math.radians(p[0]) for p in pts) / len(pts)
+    cos_lat = math.cos(mean_lat)
+    x = [R * math.radians(p[1]) * cos_lat for p in pts]
+    y = [R * math.radians(p[0]) for p in pts]
+    area = 0.0
+    n = len(x)
+    for i in range(n):
+        j = (i + 1) % n
+        area += x[i] * y[j]
+        area -= x[j] * y[i]
+    return round(abs(area) / 2.0, 3)
+

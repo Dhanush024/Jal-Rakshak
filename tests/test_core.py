@@ -53,6 +53,18 @@ class TestGeospatial:
         assert bearing_difference(0, 180) == 180
         assert bearing_difference(90, 90) == 0
 
+    def test_polygon_area_km2(self):
+        from geospatial.distance import polygon_area_km2
+        # Empty and degenerate cases
+        assert polygon_area_km2([]) == 0.0
+        assert polygon_area_km2([[80.0, 12.0]]) == 0.0
+        assert polygon_area_km2([[80.0, 12.0], [80.1, 12.0]]) == 0.0
+        # 0.1 deg square near equator/tropics: ~120 km2
+        square = [[80.0, 12.0], [80.1, 12.0], [80.1, 12.1], [80.0, 12.1], [80.0, 12.0]]
+        area = polygon_area_km2(square)
+        assert 115.0 < area < 125.0
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Ocean Hindcast
