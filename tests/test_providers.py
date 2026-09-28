@@ -1,10 +1,14 @@
 """Tests for concrete provider implementations: AIS, Ocean, SAR, and Notification providers."""
 
-import pytest
 import os
+import sys
 import tempfile
+import pytest
 import numpy as np
 from datetime import datetime, timezone, timedelta
+
+# Ensure project root on path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ais.provider import DemoAISProvider, FileHistoricalAISProvider, get_ais_provider, DataMode
 from ocean.provider import DemoOceanProvider, ConstantOceanProvider, get_ocean_provider

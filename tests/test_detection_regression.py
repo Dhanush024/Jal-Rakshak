@@ -1,9 +1,13 @@
 """Regression tests for YOLOv8 segmentation pipeline, coordinate scaling, and land false-positive rejection."""
 
-import pytest
 import os
+import sys
+import pytest
 import cv2
 import numpy as np
+
+# Ensure project root on path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sar.detection import YOLODetector, DetectionResult, SpillDetection, render_detection_overlay
 from sar.preprocessing import TileInfo

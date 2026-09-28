@@ -5,7 +5,13 @@ Tests for shoreline proximity, landfall trajectory intersection,
 threatened sensitive assets, and environmental containment strategies.
 """
 
+import os
+import sys
 import pytest
+
+# Ensure project root on path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from coastal.zones import (
     EnvironmentalSensitivityIndex,
     CoastalPoint,

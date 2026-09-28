@@ -9,9 +9,14 @@ Tests for:
 """
 
 import os
+import sys
 import pytest
 from datetime import datetime, timezone, timedelta
 import numpy as np
+import cv2
+
+# Ensure project root is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sar.geometry import SpillCharacterization, characterize_spill
 from sar.weathering import (
@@ -31,7 +36,6 @@ class TestSpillAgeEstimation:
         """A compact, high-solidity, low-aspect-ratio spill should estimate fresh release."""
         # Create synthetic circular mask (50x50 circle in 200x200)
         mask = np.zeros((200, 200), dtype=np.uint8)
-        import cv2
         cv2.circle(mask, (100, 100), 30, 255, -1)
         char = characterize_spill(mask, pixel_resolution_m=10.0)
 
@@ -47,7 +51,6 @@ class TestSpillAgeEstimation:
     def test_age_estimation_elongated_weathered(self):
         """An elongated, high-aspect-ratio slick should estimate mature weathering."""
         mask = np.zeros((300, 300), dtype=np.uint8)
-        import cv2
         cv2.ellipse(mask, (150, 150), (120, 15), 30, 0, 360, 255, -1)
         char = characterize_spill(mask, pixel_resolution_m=10.0)
 
@@ -231,3 +234,9 @@ class TestReportPDFExport:
 
         assert os.path.exists(out)
         assert os.path.getsize(out) > 5000  # Non-trivial PDF generated
+
+        # Also test direct generate_pdf_report function
+        direct_pdf = str(tmp_path / "test_direct.pdf")
+        direct_out = generate_pdf_report(report.to_dict(), direct_pdf)
+        assert os.path.exists(direct_out)
+        assert os.path.getsize(direct_out) > 5000
