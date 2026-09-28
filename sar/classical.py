@@ -99,6 +99,105 @@ class ConsensusValidationResult:
 ValidationResult = ConsensusValidationResult
 
 
+def normalize_validation_result(raw_val: Any) -> Dict[str, Any]:
+    """
+    Normalize validation results into a predictable, safe presentation dictionary.
+
+    Guarantees a stable dictionary schema regardless of whether the input is:
+    - None
+    - An empty list []
+    - A dictionary
+    - A list of dictionaries (multi-detection or sequential validation)
+    - Any unexpected object
+
+    Guarantees:
+    - `method_results` is a dictionary keyed by method name, containing at least:
+        `"land_mask": {"overlap_fraction": float, "consistency": float}`
+    - `raw_method_results` contains the original list of method results.
+    - All telemetry numeric fields (`yolo_confidence`, `classical_agreement`,
+      `contrast_ratio`, `look_alike_risk`, `land_sea_consistency`) are floats.
+    - Safe for expressions like:
+        `val_res.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)`
+    """
+    normalized: Dict[str, Any] = {
+        "yolo_confidence": 0.0,
+        "classical_agreement": 0.0,
+        "look_alike_risk": 0.0,
+        "land_sea_consistency": 1.0,
+        "morphology_consistency": 0.0,
+        "contrast_ratio": 1.0,
+        "final_validation_status": "STANDBY",
+        "overlap_score": 0.0,
+        "explanation": "Awaiting consensus evaluation.",
+        "method_results": {},
+        "raw_method_results": [],
+    }
+
+    if not raw_val:
+        normalized["method_results"]["land_mask"] = {
+            "overlap_fraction": 0.0,
+            "consistency": 1.0,
+            "method": "land_mask",
+        }
+        return normalized
+
+    primary_dict: Dict[str, Any] = {}
+    if isinstance(raw_val, (list, tuple)):
+        normalized["raw_method_results"] = [item for item in raw_val]
+        for item in raw_val:
+            if isinstance(item, dict):
+                primary_dict = item
+                break
+    elif isinstance(raw_val, dict):
+        primary_dict = raw_val
+
+    for k in [
+        "yolo_confidence", "classical_agreement", "look_alike_risk",
+        "land_sea_consistency", "morphology_consistency", "contrast_ratio",
+        "final_validation_status", "overlap_score", "explanation"
+    ]:
+        if k in primary_dict and primary_dict[k] is not None:
+            normalized[k] = primary_dict[k]
+
+    raw_methods = primary_dict.get("method_results", [])
+    methods_dict: Dict[str, Any] = {}
+
+    if isinstance(raw_methods, list):
+        if not normalized["raw_method_results"]:
+            normalized["raw_method_results"] = raw_methods
+        for m in raw_methods:
+            if isinstance(m, dict):
+                m_name = m.get("method", "unknown")
+                methods_dict[str(m_name)] = m
+    elif isinstance(raw_methods, dict):
+        methods_dict = dict(raw_methods)
+        if not normalized["raw_method_results"]:
+            normalized["raw_method_results"] = list(raw_methods.values())
+
+    # Ensure land_mask entry exists in method_results with overlap_fraction
+    consistency = normalized.get("land_sea_consistency", 1.0)
+    try:
+        derived_overlap = max(0.0, min(1.0, 1.0 - float(consistency)))
+    except (ValueError, TypeError):
+        derived_overlap = 0.0
+
+    if "land_mask" not in methods_dict or not isinstance(methods_dict["land_mask"], dict):
+        methods_dict["land_mask"] = {
+            "overlap_fraction": round(derived_overlap, 4),
+            "consistency": round(float(consistency) if isinstance(consistency, (int, float)) else 1.0, 4),
+            "method": "land_mask",
+        }
+    else:
+        lm_entry = dict(methods_dict["land_mask"])
+        if "overlap_fraction" not in lm_entry:
+            lm_entry["overlap_fraction"] = round(derived_overlap, 4)
+        methods_dict["land_mask"] = lm_entry
+
+    normalized["method_results"] = methods_dict
+    return normalized
+
+
+
 # =========================================================================
 # 1. Classical Segmentation Methods (Reference Repository Implementations)
 # =========================================================================

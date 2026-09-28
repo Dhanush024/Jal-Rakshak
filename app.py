@@ -57,7 +57,10 @@ from geospatial.distance import haversine_km, destination_point, bearing_deg
 from demo.scenario import CHENNAI_SCENARIO, get_or_create_demo_sar_patch
 from reporting.pdf import generate_pdf_report
 from sar.detection import YOLODetector, render_detection_overlay
-from sar.classical import generate_diagnostic_panels, ValidationStatus, validate_consensus
+from sar.classical import (
+    generate_diagnostic_panels, ValidationStatus, validate_consensus,
+    normalize_validation_result,
+)
 from sar.landmask import extract_land_mask, intersect_with_ocean
 
 # ──────────────────────────────────────────────────────────────
@@ -3041,7 +3044,7 @@ def render_evidence_panel(final_state, selected_mmsi=None, key_prefix=""):
 
     # Main Spill Status Box
     val_status = final_state.get("validation_status", "PROBABLE" if final_state.get("spill_detected") else "REJECTED")
-    val_res = final_state.get("validation_result", {})
+    val_res = normalize_validation_result(final_state.get("validation_result"))
 
     st.markdown(f"""
     <div class="glass-panel" style="padding:16px; margin-bottom:14px;">
@@ -3387,7 +3390,7 @@ with tab_overview:
     area_val = char_data.get("area_sq_km", final_state.get("spill_area_sq_km", 0.0) if final_state else 0.0)
     vol_val = char_data.get("estimated_volume_tons", 0.0)
     yolo_conf_val = final_state.get("detection_confidence", 0.0) if final_state else 0.0
-    val_res_obj = final_state.get("validation_result", {}) if final_state else {}
+    val_res_obj = normalize_validation_result(final_state.get("validation_result") if final_state else None)
     c_ratio_val = val_res_obj.get("contrast_ratio", 1.0)
     c_agree_val = val_res_obj.get("classical_agreement", 0.0)
     cand_list = final_state.get("candidate_scores", []) if final_state else []
@@ -4046,7 +4049,7 @@ with tab_analysis:
             area_val = char_data.get("area_sq_km", final_state.get("spill_area_sq_km", 0.0) if final_state else 0.0)
             y_conf = final_state.get("detection_confidence", 0.0) if final_state else 0.0
             val_status = final_state.get("validation_status", "AWAITING SENSOR PASS") if final_state else "STANDBY"
-            val_res = final_state.get("validation_result", {}) if final_state else {}
+            val_res = normalize_validation_result(final_state.get("validation_result") if final_state else None)
             c_agree = val_res.get("classical_agreement", 0.0)
             contrast_val = val_res.get("contrast_ratio", 1.0)
             land_frac = val_res.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)

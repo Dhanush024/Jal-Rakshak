@@ -23,6 +23,7 @@ from sar.classical import (
     superpixel_segment,
     validate_consensus,
     generate_diagnostic_panels,
+    normalize_validation_result,
 )
 from sar.metrics import (
     compute_metrics,
@@ -220,3 +221,112 @@ class TestDiagnosticPanels:
         # Should be a wide 2-row x 3-col composite with header
         assert composite.shape[1] > 1000
         assert composite.shape[0] > 600
+
+
+class TestValidationResultNormalization:
+    """
+    Regression tests for validation_result normalization.
+    Guarantees no AttributeError: 'list' object has no attribute 'get'.
+    Covers the 6 required edge cases:
+    1. val_res dict
+    2. val_res list
+    3. val_res empty list
+    4. val_res None
+    5. missing land_mask
+    6. missing overlap_fraction
+    """
+
+    def test_val_res_none(self):
+        """Case 4: val_res is None."""
+        norm = normalize_validation_result(None)
+        assert isinstance(norm, dict)
+        assert isinstance(norm.get("method_results"), dict)
+        assert isinstance(norm.get("method_results", {}).get("land_mask"), dict)
+        overlap = norm.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)
+        assert isinstance(overlap, (int, float))
+        assert overlap == 0.0
+
+    def test_val_res_empty_list(self):
+        """Case 3: val_res is an empty list []."""
+        norm = normalize_validation_result([])
+        assert isinstance(norm, dict)
+        assert isinstance(norm.get("method_results"), dict)
+        overlap = norm.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)
+        assert isinstance(overlap, (int, float))
+
+    def test_val_res_list_of_dicts(self):
+        """Case 2: val_res is a list of dictionaries (multi-detection/pipeline pass)."""
+        raw_list = [
+            {
+                "final_validation_status": "CONFIRMED",
+                "classical_agreement": 0.88,
+                "land_sea_consistency": 0.95,
+                "method_results": [
+                    {"method": "adaptive_threshold", "total_area_px": 500},
+                    {"method": "kmeans", "total_area_px": 480},
+                ],
+            }
+        ]
+        norm = normalize_validation_result(raw_list)
+        assert isinstance(norm, dict)
+        assert norm["final_validation_status"] == "CONFIRMED"
+        assert norm["classical_agreement"] == 0.88
+        assert isinstance(norm["method_results"], dict)
+        # Check that method_results was indexed by name
+        assert "adaptive_threshold" in norm["method_results"]
+        # Exact problematic expression from prompt:
+        overlap = norm.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)
+        assert isinstance(overlap, (int, float))
+        assert abs(overlap - 0.05) < 1e-3  # 1.0 - 0.95 = 0.05
+
+    def test_val_res_dict_with_list_method_results(self):
+        """Case 1: val_res is standard dict produced by ConsensusValidationResult.to_dict()."""
+        raw_dict = {
+            "yolo_confidence": 0.85,
+            "classical_agreement": 0.92,
+            "look_alike_risk": 0.12,
+            "land_sea_consistency": 0.98,
+            "contrast_ratio": 0.55,
+            "final_validation_status": "CONFIRMED",
+            "explanation": "High multi-signal consensus",
+            "method_results": [
+                {"method": "adaptive_threshold", "total_area_px": 1200},
+                {"method": "kmeans", "total_area_px": 1150},
+            ],
+        }
+        norm = normalize_validation_result(raw_dict)
+        assert isinstance(norm, dict)
+        assert isinstance(norm.get("method_results"), dict)
+        # Must not raise AttributeError: 'list' object has no attribute 'get'
+        overlap = norm.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)
+        assert isinstance(overlap, (int, float))
+        assert overlap >= 0.0
+
+    def test_val_res_missing_land_mask(self):
+        """Case 5: method_results dictionary is present but missing land_mask key."""
+        raw_dict = {
+            "classical_agreement": 0.75,
+            "land_sea_consistency": 0.90,
+            "method_results": {
+                "otsu": {"total_area_px": 300},
+            },
+        }
+        norm = normalize_validation_result(raw_dict)
+        assert "land_mask" in norm["method_results"]
+        overlap = norm.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)
+        assert isinstance(overlap, (int, float))
+        assert abs(overlap - 0.10) < 1e-3
+
+    def test_val_res_missing_overlap_fraction(self):
+        """Case 6: land_mask is present but missing overlap_fraction key."""
+        raw_dict = {
+            "land_sea_consistency": 0.85,
+            "method_results": {
+                "land_mask": {"status": "checked"},
+            },
+        }
+        norm = normalize_validation_result(raw_dict)
+        overlap = norm.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)
+        assert isinstance(overlap, (int, float))
+        assert abs(overlap - 0.15) < 1e-3
+
