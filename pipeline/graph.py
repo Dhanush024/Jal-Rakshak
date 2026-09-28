@@ -128,35 +128,43 @@ def node_detect(state: PipelineState) -> dict:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def node_validate(state: PipelineState) -> dict:
-    """Cross-validate YOLO detection with classical SAR methods."""
+    """Cross-validate YOLO detection with classical SAR consensus layer."""
     try:
         import cv2
         import numpy as np
-        from sar.classical import validate_detection
-
-        if not state.get("spill_detected"):
-            return {"validated": False, "validation_result": {}, "validation_confidence": 0.0}
+        from sar.classical import validate_consensus, ValidationStatus
 
         image_path = state.get("image_path", "")
         image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         if image is None:
             return {"validated": False, "validation_result": {}, "validation_confidence": 0.0}
 
-        # Reconstruct YOLO mask from coords
-        coords = state.get("spill_coords", [])
-        if not coords or len(coords) < 3:
-            return {"validated": False, "validation_result": {}, "validation_confidence": 0.0}
-
         h, w = image.shape[:2]
         yolo_mask = np.zeros((h, w), dtype=np.uint8)
-        pts = np.array(coords, dtype=np.int32).reshape(-1, 1, 2)
-        cv2.fillPoly(yolo_mask, [pts], 255)
 
-        result = validate_detection(yolo_mask, image)
+        all_coords = state.get("all_spill_coords", [])
+        if not all_coords and state.get("spill_coords"):
+            all_coords = [state["spill_coords"]]
+
+        if all_coords:
+            for coords in all_coords:
+                if coords and len(coords) >= 3:
+                    pts = np.array(coords, dtype=np.int32).reshape(-1, 1, 2)
+                    cv2.fillPoly(yolo_mask, [pts], 255)
+
+        confidence = state.get("detection_confidence", 0.5)
+        result = validate_consensus(yolo_mask=yolo_mask, image=image, yolo_confidence=confidence)
+
+        is_validated = result.final_validation_status in (
+            ValidationStatus.CONFIRMED.value,
+            ValidationStatus.PROBABLE.value,
+        )
+
         return {
-            "validated": True,
+            "validated": is_validated,
             "validation_result": result.to_dict(),
-            "validation_confidence": result.validation_confidence,
+            "validation_status": result.final_validation_status,
+            "validation_confidence": result.classical_agreement,
         }
     except Exception as e:
         logger.error(f"Validation failed: {e}")

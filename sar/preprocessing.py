@@ -167,27 +167,19 @@ def create_land_mask(image: np.ndarray, threshold: Optional[int] = None) -> np.n
     """
     Create a land mask based on adaptive Otsu or intensity thresholding.
 
-    In SAR images, land generally appears bright (high radar backscatter) compared
-    to calm water. When threshold is None, Otsu thresholding with Gaussian blurring
-    adaptively segments terrestrial landmasses across scenes of arbitrary dynamic range.
+    Delegates to sar.landmask.extract_land_mask for multi-stage filtering,
+    hole filling, and ocean preservation.
     """
-    gray = to_grayscale(image) if len(image.shape) == 3 else image
-    if threshold is None or threshold <= 0:
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        _, mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    else:
-        _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-    # Morphological closing to fill small gaps and unify land features
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    return mask
+    from sar.landmask import extract_land_mask
+    result = extract_land_mask(image, threshold=threshold)
+    return result.land_mask
 
 
 def apply_sea_mask(image: np.ndarray, land_mask: np.ndarray) -> np.ndarray:
     """Apply land mask to isolate sea regions. Land pixels set to 0."""
-    result = image.copy()
-    result[land_mask > 0] = 0
-    return result
+    from sar.landmask import apply_sea_mask as _apply_sea_mask
+    return _apply_sea_mask(image, land_mask)
+
 
 
 def tile_image(image: np.ndarray, tile_size: int = 512,

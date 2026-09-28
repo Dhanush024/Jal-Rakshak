@@ -613,6 +613,41 @@ if active_image and os.path.exists(active_image):
                     for rej in rejections:
                         st.caption(f"ℹ️ Artifact #{rej.get('detection_id')}: {rej.get('rejection_reason', 'Terrestrial false positive rejected.')}")
 
+            # ──── Classical SAR Multi-Signal Validation ────
+            with st.expander("🔬 Classical SAR Multi-Signal Validation", expanded=False):
+                val_stat = final_state.get("validation_status")
+                if not val_stat:
+                    det_res = final_state.get("detection_result", {})
+                    val_stat = det_res.get("validation_status", "CONFIRMED BY MULTIPLE SIGNALS" if final_state.get("spill_detected") else "REJECTED")
+
+                badge_style = "color:#10b981;font-weight:bold;" if "CONFIRMED" in val_stat else ("color:#f59e0b;font-weight:bold;" if "PROBABLE" in val_stat else "color:#ef4444;font-weight:bold;")
+                st.markdown(f"**Consensus Status:** <span style='{badge_style}'>{val_stat}</span>", unsafe_allow_html=True)
+
+                val_res = final_state.get("validation_result", {})
+                if val_res:
+                    c1, c2, c3, c4 = st.columns(4)
+                    with c1:
+                        st.metric("Classical Agreement", f"{val_res.get('classical_agreement', 0):.1%}")
+                    with c2:
+                        st.metric("Land/Sea Consistency", f"{val_res.get('land_sea_consistency', 1):.1%}")
+                    with c3:
+                        st.metric("Contrast Ratio", f"{val_res.get('contrast_ratio', 1):.2f}")
+                    with c4:
+                        st.metric("Look-Alike Risk", f"{val_res.get('look_alike_risk', 0):.1%}")
+
+                    if val_res.get("explanation"):
+                        st.info(f"**Interpretation:** {val_res.get('explanation')}")
+
+                if st.button("Generate 6-Panel Diagnostic Comparison"):
+                    img_cv = cv2.imread(active_image)
+                    if img_cv is not None:
+                        from sar.detection import YOLODetector
+                        detector = YOLODetector()
+                        det_run = detector.detect(active_image)
+                        diag_img = det_run.generate_diagnostic_visualization(img_cv, title=f"SAR Validation ({os.path.basename(active_image)})")
+                        diag_rgb = cv2.cvtColor(diag_img, cv2.COLOR_BGR2RGB)
+                        st.image(diag_rgb, use_container_width=True, caption="6-Panel Diagnostic Comparison (Original, YOLO, Classical, Land/Sea, Validated, Overlay)")
+
         # ──── Intelligence Panel ────
         with col2:
             st.subheader("Actionable Intelligence")

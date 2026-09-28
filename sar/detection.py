@@ -31,6 +31,8 @@ class SpillDetection:
     is_valid_marine: bool = True
     rejection_reason: Optional[str] = None
     mean_intensity: Optional[float] = None
+    validation_status: Optional[str] = None
+    consensus: Optional[dict] = None
 
     def to_dict(self) -> dict:
         return {
@@ -48,6 +50,8 @@ class SpillDetection:
             "is_valid_marine": self.is_valid_marine,
             "rejection_reason": self.rejection_reason,
             "mean_intensity": round(self.mean_intensity, 2) if self.mean_intensity is not None else None,
+            "validation_status": self.validation_status,
+            "consensus": self.consensus,
         }
 
 
@@ -60,6 +64,10 @@ class DetectionResult:
     inference_time_ms: float
     source_file: Optional[str] = None
     preprocessing_level: Optional[str] = None
+
+    land_mask: Optional[np.ndarray] = None
+    sea_mask: Optional[np.ndarray] = None
+    validation_status: Optional[str] = None
 
     @property
     def valid_detections(self) -> List[SpillDetection]:
@@ -84,11 +92,72 @@ class DetectionResult:
             return None
         return max(valids, key=lambda d: (d.confidence, d.pixel_area))
 
+    @property
+    def overall_validation_status(self) -> str:
+        """Compute aggregate validation status across all detections."""
+        if self.validation_status:
+            return self.validation_status
+        if self.spill_detected:
+            statuses = [d.validation_status for d in self.valid_detections if d.validation_status]
+            if "CONFIRMED BY MULTIPLE SIGNALS" in statuses:
+                return "CONFIRMED BY MULTIPLE SIGNALS"
+            if "PROBABLE" in statuses:
+                return "PROBABLE"
+            if "LIKELY LOOK-ALIKE" in statuses:
+                return "LIKELY LOOK-ALIKE"
+            if "INCONCLUSIVE" in statuses:
+                return "INCONCLUSIVE"
+            return "PROBABLE"
+        elif len(self.detections) > 0:
+            return "REJECTED"
+        else:
+            return "CONFIRMED BY MULTIPLE SIGNALS"
+
+    def generate_diagnostic_visualization(
+        self, image: np.ndarray, title: str = "SAR Oil Spill Diagnostics"
+    ) -> np.ndarray:
+        """
+        Generate 6-panel diagnostic visualization comparing:
+        1. ORIGINAL SAR, 2. YOLO MASK, 3. CLASSICAL MASK,
+        4. LAND/SEA MASK, 5. FINAL VALIDATED MASK, 6. OVERLAY
+        """
+        from sar.classical import generate_diagnostic_panels, adaptive_threshold_segment
+        h, w = self.image_shape[:2]
+
+        # Aggregate raw YOLO mask
+        yolo_mask = np.zeros((h, w), dtype=np.uint8)
+        for d in self.detections:
+            if d.mask is not None and d.mask.shape[:2] == (h, w):
+                yolo_mask = cv2.bitwise_or(yolo_mask, d.mask)
+
+        # Aggregate validated mask
+        validated_mask = np.zeros((h, w), dtype=np.uint8)
+        for d in self.valid_detections:
+            if d.mask is not None and d.mask.shape[:2] == (h, w):
+                validated_mask = cv2.bitwise_or(validated_mask, d.mask)
+
+        # Classical evidence
+        c_res = adaptive_threshold_segment(image)
+        classical_mask = c_res.mask
+
+        l_mask = self.land_mask if self.land_mask is not None else np.zeros((h, w), dtype=np.uint8)
+
+        return generate_diagnostic_panels(
+            image=image,
+            yolo_mask=yolo_mask,
+            classical_mask=classical_mask,
+            land_mask=l_mask,
+            validated_mask=validated_mask,
+            validation_status=self.overall_validation_status,
+            title=title,
+        )
+
     def to_dict(self) -> dict:
         return {
             "spill_detected": self.spill_detected,
             "num_detections": len(self.valid_detections),
             "total_detections": len(self.detections),
+            "validation_status": self.overall_validation_status,
             "detections": [d.to_dict() for d in self.valid_detections],
             "all_detections": [d.to_dict() for d in self.detections],
             "image_shape": list(self.image_shape),
@@ -96,6 +165,7 @@ class DetectionResult:
             "inference_time_ms": round(self.inference_time_ms, 1),
             "source_file": self.source_file,
         }
+
 
 
 class YOLODetector:
@@ -173,10 +243,15 @@ class YOLODetector:
         h, w = img_shape[:2] if len(img_shape) >= 2 else (0, 0)
         gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if (img is not None and len(img.shape) == 3) else img
 
+        sea_mask = None
         # Derive adaptive land/sea mask if not explicitly passed
         if land_mask is None and gray_img is not None and h > 0 and w > 0:
-            from sar.preprocessing import create_land_mask
-            land_mask = create_land_mask(gray_img)
+            from sar.landmask import extract_land_mask
+            land_res = extract_land_mask(gray_img)
+            land_mask = land_res.land_mask
+            sea_mask = land_res.sea_mask
+        elif land_mask is not None:
+            sea_mask = cv2.bitwise_not(land_mask)
 
         detections = []
         result = results[0]
@@ -218,6 +293,8 @@ class YOLODetector:
             model_name=os.path.basename(self.model_path),
             inference_time_ms=elapsed_ms,
             source_file=image_path,
+            land_mask=land_mask,
+            sea_mask=sea_mask,
         )
 
     def _process_mask(self, mask_xy, mask_data, confidence: float,
@@ -286,29 +363,63 @@ class YOLODetector:
         x_min, y_min, bw, bh = cv2.boundingRect(binary_mask)
         bbox = (int(x_min), int(y_min), int(x_min + bw), int(y_min + bh))
 
-        # 4. Marine physical validation checks
+        # 4. Marine physical validation and classical consensus checks
         scene_coverage = pixel_area / max(1, (h * w))
         is_valid_marine = True
         rejection_reason = None
         mean_intensity = None
+        validation_status = None
+        consensus_dict = None
 
         if gray_img is not None:
             mean_intensity = float(cv2.mean(gray_img, mask=binary_mask)[0])
-
-        if scene_coverage > self.max_scene_coverage:
-            is_valid_marine = False
-            rejection_reason = (
-                f"Scene coverage ({scene_coverage:.1%}) exceeds maximum marine threshold "
-                f"({self.max_scene_coverage:.0%}) — flagged as landmass or full-scene artifact."
+            from sar.classical import validate_consensus, ValidationStatus
+            consensus = validate_consensus(
+                yolo_mask=binary_mask,
+                image=gray_img,
+                yolo_confidence=confidence,
+                land_mask=land_mask,
             )
-        elif land_mask is not None:
-            land_overlap = np.sum((binary_mask > 0) & (land_mask > 0)) / max(1, np.sum(binary_mask > 0))
-            if land_overlap > self.max_land_overlap:
+            validation_status = consensus.final_validation_status
+            consensus_dict = consensus.to_dict()
+
+            if validation_status == ValidationStatus.REJECTED.value:
+                is_valid_marine = False
+                rejection_reason = consensus.explanation
+            elif validation_status in (ValidationStatus.CONFIRMED.value, ValidationStatus.PROBABLE.value):
+                is_valid_marine = True
+                # If validated mask contains ocean-bounded refined spill, update binary_mask
+                if np.sum(consensus.validated_mask > 0) >= self.min_area_px:
+                    binary_mask = consensus.validated_mask
+                    pixel_area = float(np.sum(binary_mask > 0))
+                    c_refined, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    if c_refined:
+                        main_c = max(c_refined, key=cv2.contourArea)
+                        if len(main_c) >= 3:
+                            polygon = [(float(p[0][0]), float(p[0][1])) for p in main_c]
+                    M = cv2.moments(binary_mask)
+                    if M["m00"] > 0:
+                        cx = M["m10"] / M["m00"]
+                        cy = M["m01"] / M["m00"]
+                    x_min, y_min, bw, bh = cv2.boundingRect(binary_mask)
+                    bbox = (int(x_min), int(y_min), int(x_min + bw), int(y_min + bh))
+            elif validation_status in (ValidationStatus.INCONCLUSIVE.value, ValidationStatus.LIKELY_LOOK_ALIKE.value):
+                rejection_reason = consensus.explanation
+        else:
+            if scene_coverage > self.max_scene_coverage:
                 is_valid_marine = False
                 rejection_reason = (
-                    f"Terrestrial land overlap ({land_overlap:.1%}) exceeds marine boundary threshold "
-                    f"({self.max_land_overlap:.0%}) — flagged as coastal/terrestrial artifact."
+                    f"Scene coverage ({scene_coverage:.1%}) exceeds maximum marine threshold "
+                    f"({self.max_scene_coverage:.0%}) — flagged as landmass or full-scene artifact."
                 )
+            elif land_mask is not None:
+                land_overlap = np.sum((binary_mask > 0) & (land_mask > 0)) / max(1, np.sum(binary_mask > 0))
+                if land_overlap > self.max_land_overlap:
+                    is_valid_marine = False
+                    rejection_reason = (
+                        f"Terrestrial land overlap ({land_overlap:.1%}) exceeds marine boundary threshold "
+                        f"({self.max_land_overlap:.0%}) — flagged as coastal/terrestrial artifact."
+                    )
 
         # Geographic area
         area_sq_m = pixel_area * (pixel_resolution_m ** 2)
@@ -328,6 +439,8 @@ class YOLODetector:
             is_valid_marine=is_valid_marine,
             rejection_reason=rejection_reason,
             mean_intensity=mean_intensity,
+            validation_status=validation_status,
+            consensus=consensus_dict,
         )
 
 
@@ -337,6 +450,7 @@ def render_detection_overlay(
     alpha: float = 0.40,
     draw_contours: bool = True,
     draw_labels: bool = True,
+    show_rejected: bool = False,
 ) -> np.ndarray:
     """
     Render clean detection overlay directly from native masks and contours.
@@ -359,12 +473,16 @@ def render_detection_overlay(
     has_mask = False
 
     for det in detections:
+        is_valid = getattr(det, "is_valid_marine", True)
+        if not is_valid and not show_rejected:
+            continue
+
         mask = getattr(det, "mask", None)
         if mask is not None and mask.shape[:2] == (h, w) and np.sum(mask > 0) > 0:
-            is_valid = getattr(det, "is_valid_marine", True)
             color = [255, 30, 30] if is_valid else [255, 165, 0]
             overlay[mask > 0] = color
             has_mask = True
+
 
             if draw_contours:
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -375,7 +493,13 @@ def render_detection_overlay(
                 cx, cy = getattr(det, "centroid_px", (w // 2, h // 2))
                 conf = getattr(det, "confidence", 0.0)
                 det_id = getattr(det, "detection_id", 0)
-                label = f"Slick #{det_id} ({conf:.0%})" if is_valid else f"Artifact #{det_id} [REJECTED]"
+                v_stat = getattr(det, "validation_status", "")
+                if is_valid:
+                    tag = f" [{v_stat}]" if v_stat else ""
+                    label = f"Slick #{det_id} ({conf:.0%}){tag}"
+                else:
+                    tag = f" [{v_stat}]" if v_stat else " [REJECTED]"
+                    label = f"Artifact #{det_id}{tag}"
                 cv2.putText(vis, label, (max(10, int(cx) - 40), max(20, int(cy) - 10)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
                 cv2.putText(vis, label, (max(10, int(cx) - 40), max(20, int(cy) - 10)),
@@ -385,3 +509,4 @@ def render_detection_overlay(
         cv2.addWeighted(overlay, alpha, vis, 1.0 - alpha, 0, vis)
 
     return vis
+
