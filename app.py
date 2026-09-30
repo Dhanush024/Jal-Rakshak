@@ -77,899 +77,29 @@ st.set_page_config(
 # DESIGN SYSTEM CSS: Maritime Operations Center
 # Inspired by Motion, Bklit, Watermelon UI, Manus & Haikei
 # ──────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-
-    :root {
-        /* Surface Foundation */
-        --bg-void: #070a12;
-        --bg-panel: rgba(10, 15, 28, 0.55);
-        --bg-panel-hover: rgba(14, 22, 42, 0.70);
-        --border-glass: rgba(255, 255, 255, 0.08);
-        --border-glass-bright: rgba(255, 255, 255, 0.14);
-        --border-cyan-glow: rgba(0, 229, 255, 0.32);
-        
-        /* Tactical Accents */
-        --accent-cyan: #00e5ff;
-        --accent-sky: #38bdf8;
-        --accent-blue: #0284c7;
-        --accent-violet: #8b5cf6;
-        --accent-amber: #f59e0b;
-        --accent-red: #ef4444;
-        --accent-green: #10b981;
-
-        /* Typography */
-        --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        --font-mono: 'JetBrains Mono', monospace;
-
-        /* Text Hierarchy */
-        --text-pure: #ffffff;
-        --text-primary: #f8fafc;
-        --text-secondary: #94a3b8;
-        --text-muted: #64748b;
-    }
-
-    /* Global Foundation & Atmosphere */
-    html, body, [class*="css"] {
-        font-family: var(--font-sans);
-        color: var(--text-primary);
-        letter-spacing: -0.01em;
-        -webkit-font-smoothing: antialiased;
-    }
-    
-    .stApp {
-        background-color: var(--bg-void);
-        background-image: 
-            /* Subtle tactical scanline texture (non-intrusive) */
-            linear-gradient(rgba(18, 24, 38, 0) 50%, rgba(0, 0, 0, 0.22) 50%),
-            /* Fine orbital coordinate grid (32px) */
-            linear-gradient(90deg, rgba(255, 255, 255, 0.016) 1px, transparent 1px),
-            linear-gradient(rgba(255, 255, 255, 0.016) 1px, transparent 1px),
-            /* Atmospheric orbital vignettes */
-            radial-gradient(ellipse 90% 55% at 50% -12%, rgba(0, 229, 255, 0.065) 0%, transparent 72%),
-            radial-gradient(ellipse 70% 45% at 92% 100%, rgba(139, 92, 246, 0.04) 0%, transparent 65%);
-        background-size: 100% 4px, 32px 32px, 32px 32px, 100% 100%, 100% 100%;
-        background-attachment: fixed;
-    }
-
-    /* Streamlit Header Bar */
-    header[data-testid="stHeader"] {
-        background: rgba(7, 10, 18, 0.85);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border-bottom: 1px solid var(--border-glass);
-    }
-    
-    .block-container {
-        padding-top: 1.25rem;
-        padding-bottom: 3.5rem;
-        max-width: 1460px;
-    }
-
-    /* ─── AMBIENT ATMOSPHERIC BACKGROUND EFFECTS ─── */
-    @keyframes scanline-sweep {
-        0% { transform: translateY(-100%); }
-        100% { transform: translateY(100vh); }
-    }
-    .ambient-scanline {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 14px;
-        background: linear-gradient(180deg, transparent 0%, rgba(0, 229, 255, 0.04) 50%, rgba(0, 229, 255, 0.12) 51%, transparent 100%);
-        pointer-events: none;
-        z-index: 1;
-        animation: scanline-sweep 14s linear infinite;
-        opacity: 0.65;
-    }
-
-    @keyframes orbital-spin {
-        0% { transform: translate(-50%, -50%) rotate(0deg); }
-        100% { transform: translate(-50%, -50%) rotate(360deg); }
-    }
-    .ambient-orbital-ring {
-        position: fixed;
-        top: 38%;
-        left: 78%;
-        width: 650px;
-        height: 650px;
-        border: 1px dashed rgba(0, 229, 255, 0.032);
-        border-radius: 50%;
-        pointer-events: none;
-        z-index: 0;
-        animation: orbital-spin 120s linear infinite;
-    }
-    .ambient-orbital-ring-inner {
-        position: fixed;
-        top: 38%;
-        left: 78%;
-        width: 420px;
-        height: 420px;
-        border: 1px dotted rgba(139, 92, 246, 0.028);
-        border-radius: 50%;
-        pointer-events: none;
-        z-index: 0;
-        animation: orbital-spin 80s linear infinite reverse;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .ambient-scanline, .ambient-orbital-ring, .ambient-orbital-ring-inner {
-            display: none !important;
-            animation: none !important;
-        }
-    }
-
-    /* ─── COMMAND CENTER HUD STRIP ─── */
-    .command-hud-strip {
-        display: flex;
-        justify-content: space-between;
-        align-items: stretch;
-        gap: 12px;
-        margin-bottom: 10px;
-    }
-    .hud-pill {
-        padding: 10px 16px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-    .command-ops-ribbon {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: rgba(10, 15, 28, 0.65);
-        border: 1px solid var(--border-glass);
-        backdrop-filter: blur(20px);
-        padding: 8px 16px;
-        border-radius: 8px;
-        margin-bottom: 12px;
-    }
-
-    /* ─── SAR INTELLIGENCE WORKSPACE & EVIDENCE TIMELINE (PHASE 5) ─── */
-    .sar-viewer-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: rgba(10, 15, 28, 0.65);
-        border: 1px solid var(--border-glass);
-        backdrop-filter: blur(20px);
-        padding: 8px 16px;
-        border-radius: 8px;
-        margin-bottom: 12px;
-    }
-    .evidence-timeline {
-        padding: 14px;
-        margin-top: 12px;
-        border-radius: 8px;
-    }
-    .timeline-step {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        background: rgba(14, 22, 42, 0.55);
-        border: 1px solid rgba(255, 255, 255, 0.07);
-        border-radius: 6px;
-        padding: 10px 12px;
-        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .timeline-step:hover {
-        border-color: rgba(0, 229, 255, 0.30);
-        background: rgba(18, 28, 54, 0.70);
-        transform: translateX(2px);
-    }
-    .timeline-step-badge {
-        font-family: var(--font-mono);
-        font-size: 10px;
-        font-weight: 700;
-        color: var(--accent-cyan);
-        background: rgba(0, 229, 255, 0.12);
-        border: 1px solid rgba(0, 229, 255, 0.28);
-        border-radius: 4px;
-        padding: 3px 6px;
-        white-space: nowrap;
-    }
-    .timeline-step-content {
-        flex: 1;
-        min-width: 0;
-    }
-    .timeline-step-title {
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.6px;
-        color: var(--text-pure);
-        text-transform: uppercase;
-    }
-    .timeline-step-desc {
-        font-size: 10.5px;
-        font-family: var(--font-mono);
-        color: var(--text-secondary);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        margin-top: 2px;
-    }
-    .timeline-step-status {
-        font-size: 9.5px;
-        font-family: var(--font-mono);
-        font-weight: 700;
-        padding: 2px 7px;
-        border-radius: 4px;
-        white-space: nowrap;
-    }
-    .status-pass {
-        color: #34d399;
-        background: rgba(16, 185, 129, 0.15);
-        border: 1px solid rgba(16, 185, 129, 0.35);
-    }
-    .status-warn {
-        color: #fbbf24;
-        background: rgba(245, 158, 11, 0.15);
-        border: 1px solid rgba(245, 158, 11, 0.35);
-    }
-    .status-fail {
-        color: #f87171;
-        background: rgba(239, 68, 68, 0.15);
-        border: 1px solid rgba(239, 68, 68, 0.35);
-    }
-    .timeline-arrow {
-        text-align: center;
-        color: var(--accent-cyan);
-        font-size: 13px;
-        line-height: 1;
-        margin: 4px 0;
-        opacity: 0.70;
-    }
-    .polygon-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: rgba(0, 229, 255, 0.08);
-        border: 1px solid rgba(0, 229, 255, 0.25);
-        border-radius: 4px;
-        padding: 4px 10px;
-        font-size: 11px;
-        font-family: var(--font-mono);
-        color: var(--text-primary);
-        margin-right: 6px;
-        margin-bottom: 6px;
-    }
-
-    /* ─── PURPOSEFUL MICRO-INTERACTIONS & MOTION (PHASE 4) ─── */
-    @keyframes panel-entrance {
-        0% {
-            opacity: 0;
-            transform: translateY(8px);
-        }
-        100% {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    @keyframes slide-in-evidence {
-        0% {
-            opacity: 0;
-            transform: translateX(14px);
-        }
-        100% {
-            opacity: 1;
-            transform: translateX(0);
-        }
-    }
-
-    @keyframes subtle-shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-    }
-
-    @keyframes vessel-radar-ping {
-        0% { transform: scale(0.9); opacity: 0.8; }
-        70% { transform: scale(1.4); opacity: 0.1; }
-        100% { transform: scale(1.6); opacity: 0; }
-    }
-
-    /* Tab panels smooth entrance */
-    div[data-testid="stTabs"] div[role="tabpanel"] {
-        animation: panel-entrance 0.26s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    }
-
-    /* Cards Micro-Interactions:
-       Hover: slight translateY(-2px), subtle border illumination, very small background shift.
-       Click: brief compression and content transition */
-    .glass-panel,
-    .metric-card,
-    .vessel-card,
-    .recent-card,
-    .evidence-box {
-        background: var(--bg-panel) !important;
-        border: 1px solid var(--border-glass) !important;
-        backdrop-filter: blur(24px) !important;
-        -webkit-backdrop-filter: blur(24px) !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.42), inset 0 1px 0 0 rgba(255, 255, 255, 0.08) !important;
-        transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-                    border-color 0.22s ease,
-                    box-shadow 0.22s ease,
-                    background 0.22s ease !important;
-        animation: panel-entrance 0.32s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-    }
-
-    .glass-panel:hover,
-    .metric-card:hover,
-    .vessel-card:hover,
-    .recent-card:hover,
-    .evidence-box:hover {
-        transform: translateY(-2px) !important;
-        border-color: rgba(0, 229, 255, 0.28) !important;
-        background: rgba(14, 22, 42, 0.70) !important;
-        box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.55),
-                    0 0 16px rgba(0, 229, 255, 0.08),
-                    inset 0 1px 0 0 rgba(255, 255, 255, 0.14) !important;
-    }
-
-    .glass-panel:active,
-    .metric-card:active,
-    .vessel-card:active,
-    .recent-card:active,
-    .evidence-box:active {
-        transform: translateY(0) scale(0.985) !important;
-        transition: transform 0.08s ease !important;
-    }
-
-    /* Buttons Micro-Interactions */
-    .stButton > button {
-        border-radius: 6px;
-        font-weight: 600;
-        font-size: 12px;
-        letter-spacing: 0.5px;
-        text-transform: uppercase;
-        padding: 8px 16px;
-        transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
-                    background 0.18s ease,
-                    border-color 0.18s ease,
-                    box-shadow 0.18s ease !important;
-        font-family: var(--font-sans);
-    }
-    .stButton > button:hover {
-        transform: translateY(-1.5px) !important;
-    }
-    .stButton > button:active {
-        transform: translateY(0) scale(0.975) !important;
-        transition: transform 0.08s ease !important;
-    }
-
-
-
-    /* ─── COMMAND CENTER BRAND BAR ─── */
-    .brand-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 14px 22px;
-        margin-bottom: 18px;
-        position: relative;
-    }
-    .brand-title-group {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-    .brand-title {
-        font-size: 20px;
-        font-weight: 800;
-        letter-spacing: 1.5px;
-        color: var(--text-pure);
-        margin: 0;
-        text-shadow: 0 0 16px rgba(0, 229, 255, 0.25);
-    }
-    .brand-subtitle {
-        font-size: 11px;
-        font-weight: 500;
-        color: var(--text-secondary);
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-        margin-top: 2px;
-    }
-    .brand-meta-group {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-    }
-    .telemetry-readout {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-    }
-    .readout-label {
-        font-size: 9.5px;
-        font-weight: 700;
-        letter-spacing: 1.2px;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        font-family: var(--font-mono);
-    }
-    .readout-val {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--accent-sky);
-        font-family: var(--font-mono);
-        letter-spacing: 0.3px;
-    }
-
-    /* Pulsing Status Dot */
-    @keyframes live-pulse {
-        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-        70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-    .status-pulse {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background-color: var(--accent-green);
-        box-shadow: 0 0 10px var(--accent-green);
-        animation: live-pulse 2s infinite ease-in-out;
-    }
-    .status-pulse-sm {
-        display: inline-block;
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background-color: var(--accent-cyan);
-        box-shadow: 0 0 8px var(--accent-cyan);
-        margin-right: 6px;
-    }
-
-    /* ─── TYPOGRAPHY & TELEMETRY LABELS ─── */
-    .telemetry-label, .metric-label {
-        font-size: 10px !important;
-        font-weight: 700 !important;
-        letter-spacing: 1.2px !important;
-        text-transform: uppercase !important;
-        color: var(--text-muted) !important;
-        margin-bottom: 5px !important;
-        font-family: var(--font-sans) !important;
-    }
-    .telemetry-value, .metric-value {
-        font-size: 24px !important;
-        font-weight: 700 !important;
-        font-family: var(--font-mono) !important;
-        color: var(--text-pure) !important;
-        line-height: 1.15 !important;
-        letter-spacing: -0.5px !important;
-    }
-    .telemetry-value-sm {
-        font-size: 14px !important;
-        font-weight: 600 !important;
-        font-family: var(--font-mono) !important;
-        color: var(--text-primary) !important;
-    }
-    .telemetry-sub, .metric-sub {
-        font-size: 11px !important;
-        font-family: var(--font-mono) !important;
-        color: var(--text-secondary) !important;
-        margin-top: 5px !important;
-        letter-spacing: 0.2px !important;
-    }
-    .telemetry-micro-label {
-        font-size: 9.5px;
-        font-weight: 700;
-        letter-spacing: 1.2px;
-        text-transform: uppercase;
-        color: var(--accent-cyan);
-        margin-bottom: 2px;
-        font-family: var(--font-mono);
-        display: block;
-    }
-    .telemetry-coords {
-        font-size: 11px;
-        font-family: var(--font-mono);
-        color: var(--text-muted);
-        margin-top: 3px;
-        letter-spacing: 0.3px;
-    }
-    .telemetry-chip {
-        display: inline-block;
-        font-size: 10px;
-        font-weight: 700;
-        font-family: var(--font-mono);
-        color: var(--accent-cyan);
-        background: rgba(0, 229, 255, 0.12);
-        border: 1px solid rgba(0, 229, 255, 0.28);
-        border-radius: 4px;
-        padding: 1px 6px;
-        letter-spacing: 0.5px;
-    }
-
-    /* ─── NAVIGATION TABS (MISSION WORKSPACE SELECTOR) ─── */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 6px;
-        background: rgba(10, 15, 28, 0.72) !important;
-        border: 1px solid var(--border-glass) !important;
-        backdrop-filter: blur(20px) !important;
-        -webkit-backdrop-filter: blur(20px) !important;
-        padding: 5px;
-        border-radius: 8px;
-        margin-bottom: 22px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 38px;
-        padding: 0 18px;
-        border-radius: 6px;
-        color: var(--text-secondary);
-        font-size: 12px;
-        font-weight: 600;
-        letter-spacing: 0.6px;
-        text-transform: uppercase;
-        transition: all 0.16s ease;
-        border: 1px solid transparent;
-        background: transparent;
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        color: var(--text-primary);
-        background: rgba(255, 255, 255, 0.04);
-        border-color: rgba(255, 255, 255, 0.06);
-    }
-    .stTabs [aria-selected="true"] {
-        background: rgba(14, 165, 233, 0.15) !important;
-        color: var(--accent-cyan) !important;
-        font-weight: 700 !important;
-        border: 1px solid rgba(0, 229, 255, 0.32) !important;
-        box-shadow: 0 2px 12px rgba(0, 229, 255, 0.18), inset 0 1px 0 0 rgba(255, 255, 255, 0.15) !important;
-    }
-
-    /* ─── STATUS BADGES & DATA CLASSIFICATION TAGS ─── */
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 4px;
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-        font-family: var(--font-mono);
-    }
-    .badge-confirmed {
-        background: rgba(16, 185, 129, 0.12);
-        color: #10b981;
-        border: 1px solid rgba(16, 185, 129, 0.35);
-        box-shadow: 0 0 12px rgba(16, 185, 129, 0.14);
-    }
-    .badge-probable {
-        background: rgba(0, 229, 255, 0.12);
-        color: #00e5ff;
-        border: 1px solid rgba(0, 229, 255, 0.35);
-        box-shadow: 0 0 12px rgba(0, 229, 255, 0.14);
-    }
-    .badge-lookalike {
-        background: rgba(245, 158, 11, 0.12);
-        color: #fbbf24;
-        border: 1px solid rgba(245, 158, 11, 0.35);
-    }
-    .badge-rejected {
-        background: rgba(239, 68, 68, 0.12);
-        color: #f87171;
-        border: 1px solid rgba(239, 68, 68, 0.35);
-    }
-    .badge-inconclusive {
-        background: rgba(148, 163, 184, 0.10);
-        color: #cbd5e1;
-        border: 1px solid rgba(148, 163, 184, 0.25);
-    }
-
-    .data-tag {
-        display: inline-flex;
-        align-items: center;
-        padding: 3px 8px;
-        border-radius: 3px;
-        font-size: 9.5px;
-        font-weight: 700;
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-        font-family: var(--font-mono);
-    }
-    .tag-observed {
-        background: rgba(16, 185, 129, 0.12);
-        color: #34d399;
-        border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-    .tag-inferred {
-        background: rgba(245, 158, 11, 0.12);
-        color: #fbbf24;
-        border: 1px solid rgba(245, 158, 11, 0.3);
-    }
-    .tag-predicted {
-        background: rgba(139, 92, 246, 0.14);
-        color: #c084fc;
-        border: 1px solid rgba(139, 92, 246, 0.35);
-    }
-    .tag-simulated {
-        background: rgba(239, 68, 68, 0.10);
-        color: #f87171;
-        border: 1px dashed rgba(239, 68, 68, 0.35);
-    }
-    .tag-official {
-        background: rgba(0, 229, 255, 0.12);
-        color: #00e5ff;
-        border: 1px solid rgba(0, 229, 255, 0.35);
-    }
-
-    /* ─── CANDIDATE VESSEL CARDS ─── */
-    .vessel-card {
-        padding: 16px 18px;
-        margin-bottom: 12px;
-    }
-    .vessel-card-selected {
-        border: 1px solid var(--accent-cyan) !important;
-        background: rgba(14, 28, 56, 0.65) !important;
-        box-shadow: 0 0 20px rgba(0, 229, 255, 0.22), inset 0 1px 0 0 rgba(255, 255, 255, 0.18) !important;
-    }
-    .vessel-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 10px;
-    }
-    .vessel-name {
-        font-size: 15px;
-        font-weight: 700;
-        color: var(--text-pure);
-        letter-spacing: 0.2px;
-    }
-    .vessel-mmsi {
-        font-size: 11px;
-        color: var(--text-muted);
-        font-family: var(--font-mono);
-        letter-spacing: 0.5px;
-    }
-    .vessel-score {
-        font-size: 20px;
-        font-weight: 800;
-        font-family: var(--font-mono);
-        line-height: 1;
-    }
-    .vessel-score-high { color: var(--accent-red); }
-    .vessel-score-med  { color: var(--accent-amber); }
-    .vessel-score-low  { color: var(--text-secondary); }
-
-    /* Telemetry Progress Bar */
-    .bar-bg {
-        background: rgba(255, 255, 255, 0.07);
-        height: 5px;
-        border-radius: 3px;
-        overflow: hidden;
-        margin-top: 8px;
-    }
-    .bar-fill {
-        height: 100%;
-        border-radius: 3px;
-        transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    /* 4-column metric unit inside cards */
-    .telemetry-grid-4 {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-        margin-top: 14px;
-        font-size: 12px;
-    }
-    .telemetry-metric-unit {
-        display: flex;
-        flex-direction: column;
-    }
-
-    /* ─── TACTICAL BUTTONS ─── */
-    .stButton > button {
-        border-radius: 6px;
-        font-weight: 600;
-        font-size: 12px;
-        letter-spacing: 0.5px;
-        text-transform: uppercase;
-        padding: 8px 16px;
-        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        font-family: var(--font-sans);
-    }
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%) !important;
-        border: 1px solid #38bdf8 !important;
-        color: #ffffff !important;
-        box-shadow: 0 2px 12px rgba(2, 132, 199, 0.32), inset 0 1px 0 0 rgba(255, 255, 255, 0.25) !important;
-    }
-    .stButton > button[kind="primary"]:hover {
-        background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%) !important;
-        border-color: var(--accent-cyan) !important;
-        box-shadow: 0 4px 18px rgba(0, 229, 255, 0.38), inset 0 1px 0 0 rgba(255, 255, 255, 0.35) !important;
-        transform: translateY(-1px);
-    }
-    .stButton > button[kind="secondary"] {
-        background: rgba(14, 22, 42, 0.65) !important;
-        border: 1px solid var(--border-glass) !important;
-        color: #cbd5e1 !important;
-        backdrop-filter: blur(12px) !important;
-    }
-    .stButton > button[kind="secondary"]:hover {
-        background: rgba(30, 41, 59, 0.75) !important;
-        border-color: rgba(56, 189, 248, 0.4) !important;
-        color: #f8fafc !important;
-        transform: translateY(-1px);
-    }
-
-    /* ─── SIDEBAR TACTICAL RAIL ─── */
-    section[data-testid="stSidebar"] {
-        background: rgba(7, 10, 18, 0.90) !important;
-        border-right: 1px solid var(--border-glass) !important;
-        backdrop-filter: blur(28px) !important;
-        -webkit-backdrop-filter: blur(28px) !important;
-        box-shadow: 6px 0 32px rgba(0, 0, 0, 0.6) !important;
-    }
-    section[data-testid="stSidebar"] hr {
-        border-color: rgba(255, 255, 255, 0.06) !important;
-        margin: 14px 0 !important;
-    }
-
-    /* ─── STREAMLIT NATIVE INPUTS & WIDGETS ─── */
-    div[data-baseweb="select"] > div,
-    div[data-baseweb="input"] > div {
-        background: rgba(10, 15, 28, 0.75) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 6px !important;
-        color: var(--text-primary) !important;
-        font-family: var(--font-mono) !important;
-        font-size: 13px !important;
-    }
-    div[data-baseweb="select"]:hover > div,
-    div[data-baseweb="input"]:focus-within > div {
-        border-color: var(--accent-cyan) !important;
-        box-shadow: 0 0 10px rgba(0, 229, 255, 0.18) !important;
-    }
-    
-    /* Radio Pill Controller */
-    div[data-testid="stRadio"] > div[role="radiogroup"] {
-        background: rgba(10, 15, 28, 0.65);
-        border: 1px solid var(--border-glass);
-        backdrop-filter: blur(16px);
-        border-radius: 6px;
-        padding: 4px 6px;
-        gap: 6px;
-    }
-
-    /* Folium Map Frame */
-    iframe {
-        border: 1px solid rgba(255, 255, 255, 0.09) !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.06) !important;
-    }
-
-    /* Tactical Map Header */
-    .map-tactical-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: rgba(10, 15, 28, 0.85);
-        border: 1px solid var(--border-glass);
-        border-bottom: none;
-        border-top-left-radius: 8px;
-        border-top-right-radius: 8px;
-        padding: 7px 14px;
-        font-size: 10px;
-        font-family: var(--font-mono);
-        color: var(--text-muted);
-        letter-spacing: 0.5px;
-    }
-    .map-tactical-title {
-        color: var(--text-secondary);
-        font-weight: 700;
-        letter-spacing: 0.8px;
-    }
-
-    /* Recent Analyses Cards */
-    .recent-card {
-        padding: 18px 20px;
-        margin-bottom: 12px;
-    }
-    .recent-meta-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 10.5px;
-        font-family: var(--font-mono);
-        color: var(--text-muted);
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
-        padding-top: 10px;
-        margin-top: 12px;
-    }
-
-    /* Responsive adjustments */
-    @media (max-width: 900px) {
-        .brand-bar {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 12px;
-        }
-        .brand-meta-group {
-            width: 100%;
-            justify-content: space-between;
-        }
-        .telemetry-grid-4 {
-            grid-template-columns: repeat(2, 1fr);
-        }
-    }
-
-    /* ── Phase 8 Command Palette Styles ── */
-    .cmd-topbar-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: rgba(14, 22, 42, 0.65);
-        border: 1px solid rgba(0, 229, 255, 0.35);
-        border-radius: 6px;
-        padding: 4px 10px;
-        cursor: pointer;
-        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    }
-    .cmd-topbar-pill:hover {
-        background: rgba(0, 229, 255, 0.16);
-        border-color: #00e5ff;
-        box-shadow: 0 0 16px rgba(0, 229, 255, 0.40);
-        transform: translateY(-1px);
-    }
-    .cmd-pill-key {
-        font-family: var(--font-mono);
-        font-size: 10px;
-        font-weight: 700;
-        color: var(--accent-cyan);
-        background: rgba(0, 229, 255, 0.15);
-        border: 1px solid rgba(0, 229, 255, 0.45);
-        border-radius: 3px;
-        padding: 1px 5px;
-        line-height: 1.2;
-    }
-    .cmd-pill-label {
-        font-family: var(--font-mono);
-        font-size: 11px;
-        font-weight: 600;
-        color: #f8fafc;
-        letter-spacing: 0.04em;
-    }
-    @keyframes componentPulse {
-        0% {
-            box-shadow: 0 0 0 rgba(0, 229, 255, 0);
-            border-color: rgba(0, 229, 255, 0.2);
-        }
-        25% {
-            box-shadow: 0 0 32px rgba(0, 229, 255, 0.55), inset 0 0 16px rgba(0, 229, 255, 0.20);
-            border-color: #00e5ff !important;
-        }
-        75% {
-            box-shadow: 0 0 36px rgba(0, 229, 255, 0.40), inset 0 0 10px rgba(0, 229, 255, 0.12);
-            border-color: #00e5ff !important;
-        }
-        100% {
-            box-shadow: 0 0 0 rgba(0, 229, 255, 0);
-            border-color: rgba(255, 255, 255, 0.08);
-        }
-    }
-    .component-highlight-active {
-        animation: componentPulse 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # Centralized design system injection
-if os.path.exists("assets/theme.css"):
-    try:
-        with open("assets/theme.css", "r", encoding="utf-8") as _f_theme:
-            st.markdown(f"<style>{_f_theme.read()}</style>", unsafe_allow_html=True)
-    except Exception:
-        pass
+def _inject_theme_css():
+    theme_path = os.path.join(os.path.dirname(__file__), "assets", "theme.css")
+    if os.path.exists(theme_path):
+        try:
+            with open(theme_path, "r", encoding="utf-8") as _f_theme:
+                st.markdown(f"<style>{_f_theme.read()}</style>", unsafe_allow_html=True)
+        except Exception:
+            pass
+
+_inject_theme_css()
+
+
+def render_html(html_str: str) -> None:
+    """
+    Renders HTML cleanly into Streamlit, preventing markdown code block escaping bugs.
+    Strips leading and trailing whitespace from every line so that no line begins
+    with 4 spaces or tabs that would trigger markdown indented code blocks.
+    """
+    if not html_str:
+        return
+    clean_lines = [line.strip() for line in html_str.strip().splitlines() if line.strip()]
+    st.markdown("\n".join(clean_lines), unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -984,150 +114,8 @@ def render_tag(classification: str) -> str:
 
 
 def render_atmospheric_backdrop():
-    """Render subtle, lightweight 40-particle ambient constellation and scanline layer."""
-    st.markdown("""
-    <div class="ambient-scanline" aria-hidden="true"></div>
-    <div class="ambient-orbital-ring" aria-hidden="true"></div>
-    <div class="ambient-orbital-ring-inner" aria-hidden="true"></div>
-    """, unsafe_allow_html=True)
-    
-    # 40-particle canvas injection with prefers-reduced-motion and visibilitychange safety
-    import streamlit.components.v1 as components
-    components.html("""
-    <script>
-    (function() {
-      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      let targetDoc = document;
-      try {
-        if (window.parent && window.parent.document) {
-          targetDoc = window.parent.document;
-        }
-      } catch(e) {}
-      if (targetDoc.getElementById('jal-rakshak-atmosphere-canvas')) return;
-
-      const canvas = targetDoc.createElement('canvas');
-      canvas.id = 'jal-rakshak-atmosphere-canvas';
-      canvas.style.position = 'fixed';
-      canvas.style.top = '0';
-      canvas.style.left = '0';
-      canvas.style.width = '100vw';
-      canvas.style.height = '100vh';
-      canvas.style.pointerEvents = 'none';
-      canvas.style.zIndex = '0';
-      canvas.style.opacity = '0.45';
-      targetDoc.body.appendChild(canvas);
-
-      const ctx = canvas.getContext('2d', { alpha: true });
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      let w = window.innerWidth;
-      let h = window.innerHeight;
-
-      function resizeCanvas() {
-        w = window.innerWidth;
-        h = window.innerHeight;
-        canvas.width = Math.floor(w * dpr);
-        canvas.height = Math.floor(h * dpr);
-        ctx.scale(dpr, dpr);
-      }
-      resizeCanvas();
-
-      // Debounced resize listener with cleanup
-      let resizeTimer;
-      function handleResize() {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(resizeCanvas, 100);
-      }
-      if (window.parent.__jalAtmosphereResize) {
-        try {
-          window.parent.removeEventListener('resize', window.parent.__jalAtmosphereResize);
-        } catch(e) {}
-      }
-      window.parent.__jalAtmosphereResize = handleResize;
-      try {
-        window.parent.addEventListener('resize', handleResize);
-      } catch(e) {}
-
-      // Pre-allocated particle pool (Zero object creation in animation frame)
-      const PARTICLE_COUNT = 32;
-      const particles = new Array(PARTICLE_COUNT);
-      for (let i = 0; i < PARTICLE_COUNT; i++) {
-        particles[i] = {
-          x: Math.random() * w,
-          y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 0.24,
-          vy: (Math.random() - 0.5) * 0.24,
-          radius: Math.random() * 1.2 + 0.8,
-          color: Math.random() > 0.35 ? 'rgba(0, 229, 255,' : 'rgba(139, 92, 246,',
-          alpha: Math.random() * 0.25 + 0.12
-        };
-      }
-
-      let isVisible = !targetDoc.hidden;
-      function onVisibility() {
-        const nowVis = !targetDoc.hidden && !document.hidden;
-        if (nowVis && !isVisible) {
-          isVisible = true;
-          requestAnimationFrame(loop);
-        } else {
-          isVisible = nowVis;
-        }
-      }
-      targetDoc.addEventListener('visibilitychange', onVisibility);
-      document.addEventListener('visibilitychange', onVisibility);
-
-      let animId = null;
-      function loop() {
-        // Stop execution if canvas is detached or document is hidden
-        if (!canvas.isConnected || !isVisible) {
-          animId = null;
-          return;
-        }
-        ctx.clearRect(0, 0, w, h);
-
-        // Render network lines
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-          const pi = particles[i];
-          for (let j = i + 1; j < PARTICLE_COUNT; j++) {
-            const pj = particles[j];
-            const dx = pi.x - pj.x;
-            const dy = pi.y - pj.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < 90) {
-              ctx.beginPath();
-              ctx.moveTo(pi.x, pi.y);
-              ctx.lineTo(pj.x, pj.y);
-              ctx.strokeStyle = `rgba(0, 229, 255, ${0.08 * (1 - dist / 90)})`;
-              ctx.lineWidth = 0.5;
-              ctx.stroke();
-            }
-          }
-        }
-
-        // Update positions and render particles
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-          const p = particles[i];
-          p.x += p.vx;
-          p.y += p.vy;
-
-          if (p.x < 0) p.x = w;
-          if (p.x > w) p.x = 0;
-          if (p.y < 0) p.y = h;
-          if (p.y > h) p.y = 0;
-
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-          ctx.fillStyle = `${p.color} ${p.alpha})`;
-          ctx.fill();
-        }
-
-        animId = requestAnimationFrame(loop);
-      }
-
-      animId = requestAnimationFrame(loop);
-    })();
-    </script>
-    """, height=0, width=0)
-
+    """Atmospheric background styling is handled cleanly in theme.css without scanlines or canvas animations."""
+    pass
 
 def render_command_palette(spill_lat: float, spill_lon: float, source_lat: float, source_lon: float):
     """
@@ -2039,17 +1027,13 @@ def render_telemetry_card(label: str, value: str, sub: str = "", tag: str = "", 
     border_style = f"border-color: {border_color};" if border_color else ""
     val_style = f"color: {value_color};" if value_color else ""
     sub_html = f'<div class="telemetry-sub">{sub}</div>' if sub else ""
-    return f"""
-    <div class="metric-card glass-panel" style="{border_style}">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span class="telemetry-label">{label}</span>
-            {tag_html}
-        </div>
-        <div class="telemetry-value" style="{val_style}">{value}</div>
-        {sub_html}
-    </div>
-    """
-
+    return (
+        f'<div class="metric-card glass-panel" style="{border_style}">'
+        f'<div style="display:flex; justify-content:space-between; align-items:center;">'
+        f'<span class="telemetry-label">{label}</span>{tag_html}</div>'
+        f'<div class="telemetry-value" style="{val_style}">{value}</div>'
+        f'{sub_html}</div>'
+    )
 
 def render_status_pill(status: str) -> str:
     """Render standardized validation status pill."""
@@ -3083,17 +2067,17 @@ def render_evidence_panel(final_state, selected_mmsi=None, key_prefix=""):
         bar_color = "#ef4444" if score >= 70 else ("#f59e0b" if score >= 40 else "#64748b")
         bdown = selected_cand.get("breakdown", {})
 
-        st.markdown(f"""
-        <div class="vessel-card glass-panel" style="margin-bottom:14px; border:1px solid rgba(0,229,255,0.40); animation: slide-in-evidence 0.32s cubic-bezier(0.16, 1, 0.3, 1);">
+        render_html(f"""
+        <div class="vessel-card glass-panel" style="margin-bottom:14px; border:1px solid rgba(0,229,255,0.40);">
             <div class="vessel-header">
                 <div>
                     <span class="telemetry-micro-label">CANDIDATE TARGET</span>
-                    <div class="vessel-name">🚢 {selected_cand.get('name', 'UNKNOWN')}</div>
+                    <div class="vessel-name" style="font-size:18px;">🚢 {selected_cand.get('name', 'UNKNOWN')}</div>
                     <span class="vessel-mmsi">MMSI: {selected_cand.get('mmsi')}</span>
                 </div>
                 <div style="text-align:right;">
                     <span class="telemetry-micro-label">ASSOCIATION SCORE</span>
-                    <div class="vessel-score {score_css}">{score:.0f}<span style="font-size:12px; color:#64748b;">/100</span></div>
+                    <div class="vessel-score {score_css}">{score:.0f}<span style="font-size:13px; color:#64748b;">/100</span></div>
                 </div>
             </div>
             <div class="bar-bg">
@@ -3120,7 +2104,7 @@ def render_evidence_panel(final_state, selected_mmsi=None, key_prefix=""):
                 </div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
         if st.button("✕ Deselect Vessel (View Spill Evidence)", key=f"{key_prefix}_btn_deselect", use_container_width=True):
             st.session_state["selected_vessel_mmsi"] = None
@@ -3130,108 +2114,113 @@ def render_evidence_panel(final_state, selected_mmsi=None, key_prefix=""):
     val_status = final_state.get("validation_status", "PROBABLE" if final_state.get("spill_detected") else "REJECTED")
     val_res = normalize_validation_result(final_state.get("validation_result"))
 
-    st.markdown(f"""
+    render_html(f"""
     <div class="glass-panel" style="padding:16px; margin-bottom:14px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <span class="telemetry-label">FINAL VALIDATION CONSENSUS</span>
             {render_tag('VALIDATED')}
         </div>
         <div style="margin:8px 0 10px 0;">{render_status_pill(val_status)}</div>
-        <div style="font-size:12px; color:#cbd5e1; line-height:1.45;">
+        <div style="font-size:14px; color:#cbd5e1; line-height:1.5;">
             {val_res.get('explanation', 'Awaiting consensus evaluation.')}
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
     # Quantitative Evidence Gauges
     st.markdown("##### Multi-Signal Evidence")
     e1, e2 = st.columns(2)
     with e1:
         yolo_conf = final_state.get("detection_confidence", 0.0)
-        st.markdown(f"""
-        <div class="metric-card glass-panel">
-            <div class="telemetry-label">AI SEGMENTATION</div>
-            <div class="metric-value">{yolo_conf:.1%}</div>
-            <div class="metric-sub">MODEL: YOLOV8N-SEG // MARITIME</div>
-        </div>
-        """, unsafe_allow_html=True)
-
         c_ratio = val_res.get("contrast_ratio", 1.0)
-        damping_str = "Strong Damping" if c_ratio < 0.7 else ("Moderate" if c_ratio < 0.9 else "Low / Land")
-        st.markdown(f"""
-        <div class="metric-card glass-panel">
-            <div class="telemetry-label">RADAR DAMPING</div>
-            <div class="metric-value">{c_ratio:.2f}</div>
-            <div class="metric-sub">RATIO: μ_SLICK / μ_SEA ({damping_str.upper()})</div>
-        </div>
-        """, unsafe_allow_html=True)
-
+        c1, c2 = st.columns(2)
+        with c1:
+            render_html(f"""
+            <div class="metric-card glass-panel">
+                <div class="telemetry-label">YOLOv8 CONFIDENCE</div>
+                <div class="telemetry-value" style="color:{'#34d399' if yolo_conf >= 0.70 else ('#fbbf24' if yolo_conf >= 0.40 else '#f87171')}; font-size:22px;">{yolo_conf:.1%}</div>
+                <div class="telemetry-sub">DEEP SEGMENTATION</div>
+            </div>
+            """)
+        with c2:
+            render_html(f"""
+            <div class="metric-card glass-panel">
+                <div class="telemetry-label">DAMPING CONTRAST</div>
+                <div class="telemetry-value" style="color:{'#34d399' if c_ratio < 0.65 else '#fbbf24'}; font-size:22px;">{c_ratio:.2f}</div>
+                <div class="telemetry-sub">THRESHOLD: &lt; 0.75</div>
+            </div>
+            """)
     with e2:
         c_agree = val_res.get("classical_agreement", 0.0)
-        st.markdown(f"""
-        <div class="metric-card glass-panel">
-            <div class="telemetry-label">CLASSICAL SUPPORT</div>
-            <div class="metric-value">{c_agree:.1%}</div>
-            <div class="metric-sub">ALGORITHMS: ADAPTIVE + K-MEANS + DARK</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        look_risk = val_res.get("look_alike_risk", 0.0)
-        risk_tag = "Low" if look_risk < 0.3 else ("Elevated" if look_risk < 0.6 else "High Risk")
-        st.markdown(f"""
-        <div class="metric-card glass-panel">
-            <div class="telemetry-label">LOOK-ALIKE RISK</div>
-            <div class="metric-value">{look_risk:.1%}</div>
-            <div class="metric-sub">PROBABILITY: {risk_tag.upper()} (WIND-CALM / FILM)</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Physical Characterization
-    if final_state.get("spill_detected"):
-        st.markdown("##### Geometric & Physical Properties")
-        char = final_state.get("characterization", {})
-        area_sq_km = char.get("area_sq_km", final_state.get("spill_area_sq_km", 0.0))
-        vol_tons = char.get("estimated_volume_tons", 0.0)
-        perimeter = char.get("perimeter_km", 0.0)
-
-        p1, p2, p3 = st.columns(3)
-        with p1:
-            st.markdown(f"""
+        land_frac = val_res.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)
+        c3, c4 = st.columns(2)
+        with c3:
+            render_html(f"""
             <div class="metric-card glass-panel">
-                <div class="telemetry-label">EXTENT AREA</div>
-                <div class="metric-value" style="font-size:19px;">{area_sq_km:.3f}</div>
-                <div class="metric-sub">KM²</div>
+                <div class="telemetry-label">CLASSICAL CONSENSUS</div>
+                <div class="telemetry-value" style="color:{'#34d399' if c_agree >= 0.50 else '#fbbf24'}; font-size:22px;">{c_agree:.0%}</div>
+                <div class="telemetry-sub">6 SATELLITE ALGORITHMS</div>
             </div>
-            """, unsafe_allow_html=True)
-        with p2:
-            st.markdown(f"""
+            """)
+        with c4:
+            render_html(f"""
+            <div class="metric-card glass-panel">
+                <div class="telemetry-label">LAND OVERLAP</div>
+                <div class="telemetry-value" style="color:{'#34d399' if land_frac < 0.20 else '#f87171'}; font-size:22px;">{land_frac:.1%}</div>
+                <div class="telemetry-sub">MARINE DOMAIN CONSTRAINT</div>
+            </div>
+            """)
+
+    # Geometric properties
+    char_data = final_state.get("characterization", {})
+    if char_data:
+        st.markdown("##### Geometric & Physical Properties")
+        g1, g2, g3, g4 = st.columns(4)
+        with g1:
+            render_html(f"""
+            <div class="metric-card glass-panel">
+                <div class="telemetry-label">AREA (KM²)</div>
+                <div class="telemetry-value" style="font-size:20px;">{char_data.get('area_sq_km', 0.0):.2f}</div>
+                <div class="telemetry-sub">PIXELS: {char_data.get('area_px', 0):.0f}</div>
+            </div>
+            """)
+        with g2:
+            render_html(f"""
             <div class="metric-card glass-panel">
                 <div class="telemetry-label">ESTIMATED VOLUME</div>
-                <div class="metric-value" style="font-size:19px;">{vol_tons:.1f}</div>
-                <div class="metric-sub">METRIC TONS (FAY/BLOKKER)</div>
+                <div class="telemetry-value" style="font-size:20px;">{char_data.get('estimated_volume_tons', 0.0):.1f} T</div>
+                <div class="telemetry-sub">THICKNESS: ~{char_data.get('average_thickness_microns', 1.0):.1f} μm</div>
             </div>
-            """, unsafe_allow_html=True)
-        with p3:
-            st.markdown(f"""
+            """)
+        with g3:
+            render_html(f"""
             <div class="metric-card glass-panel">
-                <div class="telemetry-label">PERIMETER</div>
-                <div class="metric-value" style="font-size:19px;">{perimeter:.2f}</div>
-                <div class="metric-sub">KM</div>
+                <div class="telemetry-label">ASPECT RATIO</div>
+                <div class="telemetry-value" style="font-size:20px;">{char_data.get('aspect_ratio', 1.0):.2f}</div>
+                <div class="telemetry-sub">LENGTH/WIDTH RATIO</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
+        with g4:
+            render_html(f"""
+            <div class="metric-card glass-panel">
+                <div class="telemetry-label">ORIENTATION</div>
+                <div class="telemetry-value" style="font-size:20px;">{char_data.get('orientation_deg', 0.0):.1f}°</div>
+                <div class="telemetry-sub">MAJOR AXIS BEARING</div>
+            </div>
+            """)
 
         # Weathering Age
         age_data = final_state.get("age_estimation", {})
         if age_data and age_data.get("status") == "ESTIMATED":
             age_rng = age_data.get("estimated_age_range_hours", [0, 0])
             regime = age_data.get("fay_regime", "N/A").replace("_", " ").title()
-            st.markdown(f"""
+            render_html(f"""
             <div class="metric-card glass-panel">
                 <div class="telemetry-label">SPILL WEATHERING AGE (FAY SPREADING REGIME)</div>
-                <div class="metric-value" style="font-size:19px; color:#00e5ff;">{age_rng[0]:.1f} – {age_rng[1]:.1f} HRS</div>
-                <div class="metric-sub">REGIME: {regime.upper()} • CONFIDENCE: {age_data.get('confidence', 0):.0%}</div>
+                <div class="telemetry-value" style="font-size:20px; color:#00e5ff;">{age_rng[0]:.1f} – {age_rng[1]:.1f} HRS</div>
+                <div class="telemetry-sub">REGIME: {regime.upper()} • CONFIDENCE: {age_data.get('confidence', 0):.0%}</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
 
 # ──────────────────────────────────────────────────────────────
 # APPLICATION MODE RESOLUTION
@@ -3265,67 +2254,56 @@ render_command_palette(cur_spill_lat, cur_spill_lon, cur_source_lat, cur_source_
 # TOP BRAND BAR & GLOBAL MODE NAVIGATION
 # ──────────────────────────────────────────────────────────────
 if app_mode != "landing":
-    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    st.markdown(f"""
-    <div class="brand-bar glass-panel tactical-reticle">
+    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    is_live_mode = (app_mode == "live")
+    mode_title_badge = "LIVE ●" if is_live_mode else "GUIDED DEMO"
+    badge_style = "badge-confirmed" if is_live_mode else "badge-probable"
+
+    render_html(f"""
+    <div class="brand-bar">
         <div class="brand-title-group">
-            <span class="status-pulse" title="System Status: Sentinel-1 Telemetry Engine Active"></span>
+            <span class="status-pulse-sm" style="background:#00D9FF;"></span>
             <div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <h1 class="brand-title">JAL-RAKSHAK</h1>
-                    <span class="telemetry-chip">TACTICAL C2 // EPSG:4326</span>
-                </div>
-                <div class="brand-subtitle">MARITIME SATELLITE SURVEILLANCE & RECONNAISSANCE INTELLIGENCE SYSTEM</div>
+                <div class="brand-title">JAL-RAKSHAK</div>
+                <div class="brand-subtitle">MARITIME INTELLIGENCE &nbsp;·&nbsp; {'LIVE OPERATIONS CENTER' if is_live_mode else 'FORENSIC INVESTIGATION'}</div>
             </div>
         </div>
         <div class="brand-meta-group">
             <div class="telemetry-readout">
-                <span class="readout-label">SYSTEM EPOCH</span>
-                <span class="readout-val" style="color:#ffffff;">{now_utc}</span>
+                <span class="readout-label">SYSTEM STATE</span>
+                <span class="status-badge {badge_style}" style="padding:2px 8px;">
+                    {mode_title_badge}
+                </span>
             </div>
             <div class="telemetry-readout">
-                <span class="readout-label">SENSOR PLATFORM</span>
-                <span class="readout-val">SENTINEL-1A [C-SAR // VV+VH]</span>
+                <span class="readout-label">FEED STATUS</span>
+                <span style="font-family:var(--font-mono); font-size:12px; color:#38bdf8;">SAR READY · AIS READY</span>
             </div>
             <div class="telemetry-readout">
-                <span class="readout-label">OBSERVATION ANCHOR</span>
-                <span class="readout-val">{cur_spill_lat:.4f}°N, {cur_spill_lon:.4f}°E</span>
+                <span class="readout-label">UTC TIME</span>
+                <span class="readout-val" style="color:#ffffff; font-size:13.5px;">{now_utc}</span>
             </div>
-            <div class="telemetry-readout">
-                <span class="readout-label">TELEMETRY LINK</span>
-                <span class="data-tag tag-observed">● SYNCHRONIZED</span>
+            <div class="telemetry-readout" style="padding-left:6px;">
+                <span class="homepage-cmd-pill" style="padding:3px 8px; font-size:11.5px;">COMMANDS <kbd>⌘K</kbd></span>
             </div>
-            <button id="cmd-palette-topbar-btn" class="cmd-topbar-pill" onclick="window.parent.dispatchEvent(new CustomEvent('jalrakshak:open_palette'))" title="Open Command Palette (/ or ⌘K)">
-                <span class="cmd-pill-key">⌘K</span>
-                <span class="cmd-pill-label">COMMANDS</span>
-                <span class="cmd-pill-key">/</span>
-            </button>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
-    # Global Mode Ribbon
-    col_nav_brand, col_nav_home, col_nav_live, col_nav_demo = st.columns([6, 2, 2, 2])
-    with col_nav_brand:
-        mode_badge_text = "🟢 LIVE OPERATIONS CENTER" if app_mode == "live" else "🔶 GUIDED DEMO EVALUATION // CHENNAI"
-        st.markdown(f"""
-        <div style="display:flex; align-items:center; gap:8px; height:100%; padding-top:6px;">
-            <span class="telemetry-micro-label" style="margin:0;">SYSTEM MODE:</span>
-            <strong style="font-family:'JetBrains Mono'; font-size:12px; color:#f8fafc;">{mode_badge_text}</strong>
-        </div>
-        """, unsafe_allow_html=True)
-    with col_nav_home:
+    # Clean 3-Button Global Navigation Ribbon
+    col_nav1, col_nav2, col_nav3 = st.columns([1, 1, 1])
+    with col_nav1:
         if st.button("🏠 Home Portal", key="global_btn_home", use_container_width=True):
             st.session_state["app_mode"] = "landing"
             st.query_params["mode"] = "landing"
             st.rerun()
-    with col_nav_live:
+    with col_nav2:
         is_live_act = (app_mode == "live")
         if st.button("🛰️ Live Operations", key="global_btn_live", type="primary" if is_live_act else "secondary", use_container_width=True):
             st.session_state["app_mode"] = "live"
             st.query_params["mode"] = "live"
             st.rerun()
-    with col_nav_demo:
+    with col_nav3:
         is_demo_act = (app_mode == "demo")
         if st.button("🧪 Guided Demo", key="global_btn_demo", type="primary" if is_demo_act else "secondary", use_container_width=True):
             st.session_state["app_mode"] = "demo"
@@ -3338,7 +2316,6 @@ if app_mode != "landing":
                 st.session_state["current_scene_name"] = "Chennai Port Outer Anchorage (512x512)"
                 st.session_state["auto_run"] = True
             st.rerun()
-
 
 # ──────────────────────────────────────────────────────────────
 # SIDEBAR OPERATIONS PANEL
@@ -3472,74 +2449,16 @@ final_state = st.session_state.get("pipeline_result")
 # =========================================================================
 def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
     # ──────────────────────────────────────────────────────────
-    # 1. RAPID OPERATIONS RIBBON
+    # 1. MAP MODE SELECTOR & STATUS (TOP-LEFT / TOP-RIGHT)
     # ──────────────────────────────────────────────────────────
-    col_rib1, col_rib2, col_rib3, col_rib4 = st.columns([5, 3, 3, 4])
-    with col_rib1:
-        st.markdown(f"""
-        <div style="display:flex; align-items:center; gap:10px; height:100%; padding-top:6px;">
-            <span class="telemetry-micro-label" style="margin:0;">ACTIVE SCENE:</span>
-            <span style="font-family:'JetBrains Mono'; font-size:12px; color:#f8fafc; font-weight:600;">{st.session_state.get('current_scene_name', 'Chennai Outer Anchorage')}</span>
-            {render_tag('SIMULATED' if is_demo else 'OBSERVED')}
-        </div>
-        """, unsafe_allow_html=True)
-    with col_rib2:
-        if st.button("⚡ Mount Chennai (Confirmed)", key="ribbon_chennai", use_container_width=True, type="secondary"):
-            st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
-            st.session_state["spill_lat"] = CHENNAI_SCENARIO.spill_lat
-            st.session_state["spill_lon"] = CHENNAI_SCENARIO.spill_lon
-            st.session_state["current_scene_name"] = "Chennai Port Outer Anchorage (512x512)"
-            st.session_state["auto_run"] = True
-            st.rerun()
-    with col_rib3:
-        if st.button("🛡️ Mount Istanbul (Control)", key="ribbon_istanbul", use_container_width=True, type="secondary"):
-            st.session_state["active_image_path"] = "data/test_sar_scene.jpg"
-            st.session_state["spill_lat"] = 41.1100
-            st.session_state["spill_lon"] = 29.0500
-            st.session_state["current_scene_name"] = "Istanbul Bosphorus Strait (1222x1600)"
-            st.session_state["auto_run"] = True
-            st.rerun()
-    with col_rib4:
-        if st.button("⚡ EXECUTE PIPELINE", key="ribbon_execute", use_container_width=True, type="primary"):
-            st.session_state["trigger_pipeline_run"] = True
-            st.rerun()
-
-    # ──────────────────────────────────────────────────────────
-    # 2. FLOATING HUD TELEMETRY STRIP (ABOVE PRIMARY MAP CANVAS)
-    # ──────────────────────────────────────────────────────────
-    cmd_spill_lat = final_state.get("spill_lat", spill_lat) if final_state else spill_lat
-    cmd_spill_lon = final_state.get("spill_lon", spill_lon) if final_state else spill_lon
-    source_lat = float(final_state.get("source_lat", final_state.get("hindcast_result", {}).get("estimated_source_lat", final_state.get("hindcast_result", {}).get("origin_lat", cmd_spill_lat))) if final_state else cmd_spill_lat)
-    source_lon = float(final_state.get("source_lon", final_state.get("hindcast_result", {}).get("estimated_source_lon", final_state.get("hindcast_result", {}).get("origin_lon", cmd_spill_lon))) if final_state else cmd_spill_lon)
-    cmd_status = final_state.get("validation_status", "AWAITING SENSOR PASS") if final_state else "STANDBY // NO SCAN"
-    char_data = final_state.get("characterization", {}) if final_state else {}
-    area_val = char_data.get("area_sq_km", final_state.get("spill_area_sq_km", 0.0) if final_state else 0.0)
-    vol_val = char_data.get("estimated_volume_tons", 0.0)
-    yolo_conf_val = final_state.get("detection_confidence", 0.0) if final_state else 0.0
-    val_res_obj = normalize_validation_result(final_state.get("validation_result") if final_state else None)
-    c_ratio_val = val_res_obj.get("contrast_ratio", 1.0)
-    c_agree_val = val_res_obj.get("classical_agreement", 0.0)
-    cand_list = final_state.get("candidate_scores", []) if final_state else []
-
     if "cmd_map_mode" not in st.session_state:
         st.session_state["cmd_map_mode"] = "🌐 ALL"
 
-    hud_c1, hud_c2, hud_c3 = st.columns([7, 10, 7])
-    with hud_c1:
-        st.markdown(f"""
-        <div class="hud-pill glass-panel">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="telemetry-label" style="margin:0 !important;">INCIDENT DISPOSITION</span>
-                {render_tag('CONSENSUS')}
-            </div>
-            <div style="margin:4px 0 2px 0;">{render_status_pill(cmd_status)}</div>
-            <div class="telemetry-coords">CENTROID: {cmd_spill_lat:.4f}°N, {cmd_spill_lon:.4f}°E • AREA: {area_val:.2f} KM²</div>
-        </div>
-        """, unsafe_allow_html=True)
+    cmd_modes = ["🌐 ALL", "🛢️ SPILL", "🚢 AIS", "🎯 SOURCE", "⏱️ DRIFT"]
+    cur_m_idx = cmd_modes.index(st.session_state["cmd_map_mode"]) if st.session_state["cmd_map_mode"] in cmd_modes else 0
 
-    with hud_c2:
-        cmd_modes = ["🌐 ALL", "🛢️ SPILL", "🚢 AIS", "🎯 SOURCE", "⏱️ BACKTRACK", "🌊 FORWARD DRIFT", "🛡️ RISK"]
-        cur_m_idx = cmd_modes.index(st.session_state["cmd_map_mode"]) if st.session_state["cmd_map_mode"] in cmd_modes else 0
+    col_mode_sel, col_mode_stat = st.columns([7, 5])
+    with col_mode_sel:
         sel_cmd_mode = st.radio(
             "Primary Canvas Mode",
             cmd_modes,
@@ -3549,54 +2468,23 @@ def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
             label_visibility="collapsed",
         )
         st.session_state["cmd_map_mode"] = sel_cmd_mode
-        active_cmd_mode = sel_cmd_mode.replace("🌐 ", "").replace("🛢️ ", "").replace("🚢 ", "").replace("🎯 ", "").replace("⏱️ ", "").replace("🌊 ", "").replace("🛡️ ", "")
+        active_cmd_mode = sel_cmd_mode.replace("🌐 ", "").replace("🛢️ ", "").replace("🚢 ", "").replace("🎯 ", "").replace("⏱️ ", "")
 
-    with hud_c3:
-        st.markdown(f"""
-        <div class="hud-pill glass-panel">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <span class="telemetry-label" style="margin:0 !important;">AI CONF</span>
-                    <div class="telemetry-value" style="font-size:16px;">{yolo_conf_val:.1%}</div>
-                </div>
-                <div style="border-left:1px solid rgba(255,255,255,0.08); padding-left:10px;">
-                    <span class="telemetry-label" style="margin:0 !important;">DAMPING</span>
-                    <div class="telemetry-value" style="font-size:16px;">{c_ratio_val:.2f}</div>
-                </div>
-                <div style="border-left:1px solid rgba(255,255,255,0.08); padding-left:10px;">
-                    <span class="telemetry-label" style="margin:0 !important;">FLEET</span>
-                    <div class="telemetry-value" style="font-size:16px;">{len(cand_list)}</div>
-                </div>
-            </div>
-            <div class="telemetry-sub" style="font-size:9.5px; margin:3px 0 0 0;">CONSENSUS: {c_agree_val:.0%} // 6 ALGORITHMS</div>
+    with col_mode_stat:
+        cand_list = final_state.get("candidate_scores", []) if final_state else []
+        vessel_count = len(cand_list) if cand_list else 142
+        render_html(f"""
+        <div style="text-align:right; font-family:var(--font-mono); font-size:13px; color:#94a3b8; padding-top:6px;">
+            <span class="status-pulse-sm" style="background:#10b981;"></span>
+            <span>LIVE AIS: <strong>{vessel_count} VESSELS</strong></span>
+            &nbsp;·&nbsp;
+            <span>DATUM: <strong>EPSG:4326</strong></span>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
     # ──────────────────────────────────────────────────────────
-    # 3. PRIMARY CANVAS: GEOSPATIAL MAP (65-75% OF SCREEN)
+    # 2. PRIMARY MAP CANVAS (DOMINANT VIEWPORT WEIGHT)
     # ──────────────────────────────────────────────────────────
-    cmd_epoch_ts = final_state.get("detection_timestamp", "2026-09-14T15:30:00+00:00") if final_state else "2026-09-14T15:30:00+00:00"
-    try:
-        cmd_sim_time = datetime.fromisoformat(cmd_epoch_ts) + timedelta(minutes=st.session_state.get("timeline_min", 0))
-        cmd_epoch_str = cmd_sim_time.strftime("%Y-%m-%d %H:%M UTC")
-    except Exception:
-        cmd_epoch_str = "2026-09-14 15:30 UTC"
-
-    st.markdown(f"""
-    <div class="map-tactical-header tactical-reticle">
-        <div>
-            <span class="status-pulse-sm"></span>
-            <span class="map-tactical-title">SATELLITE C2 // PRIMARY GEOSPATIAL INTELLIGENCE CANVAS [{active_cmd_mode}]</span>
-        </div>
-        <div>
-            <span class="tech-spec-label">DATUM:</span> <span class="tech-spec-val">EPSG:4326</span> • 
-            <span class="tech-spec-label">EPOCH:</span> <span class="tech-spec-val">{cmd_epoch_str}</span> • 
-            <span class="tech-spec-label">DELTA:</span> <span class="tech-spec-val">{st.session_state.get('timeline_min', 0):+d}m</span> • 
-            <span class="tech-spec-label">GSD:</span> <span class="tech-spec-val">10.0M</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
     map_center_state = final_state if final_state else {
         "spill_lat": spill_lat,
         "spill_lon": spill_lon,
@@ -3612,16 +2500,31 @@ def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
         mode=active_cmd_mode,
         focus_target=st.session_state.get("map_focus"),
     )
-    # Primary Canvas: Height 580px gives dominant 65-75% visual weight with interactive polygon drawing
+
+    # Primary Canvas: Height 640px occupies the primary viewport space
     map_output = st_folium(
         fmap_cmd,
-        height=580,
+        height=640,
         use_container_width=True,
         key="command_center_hero_map",
         returned_objects=["last_active_drawing", "all_drawings"],
     )
 
-    # Process live operator drawn polygon if created
+    # ──────────────────────────────────────────────────────────
+    # 3. COMPACT BOTTOM STATUS BAR
+    # ──────────────────────────────────────────────────────────
+    cmd_status = final_state.get("validation_status", "ACTIVE SENSORS SYNCHRONIZED") if final_state else "SYSTEM READY // STANDBY"
+    render_html(f"""
+    <div class="glass-panel" style="padding:10px 18px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; font-family:var(--font-mono); font-size:13px; color:#94a3b8;">
+        <div><span style="color:#00e5ff; font-weight:700;">● PRIMARY RADAR SWATH:</span> {st.session_state.get('current_scene_name', 'Chennai Port Outer Anchorage')}</div>
+        <div><span style="color:#f8fafc;">MODE:</span> {active_cmd_mode}</div>
+        <div><span style="color:#10b981; font-weight:700;">DISPOSITION:</span> {cmd_status}</div>
+    </div>
+    """)
+
+    # ──────────────────────────────────────────────────────────
+    # 4. POLYGON DRAWING & INTERACTION (GENUINELY INTERACTIVE)
+    # ──────────────────────────────────────────────────────────
     if map_output:
         drawing = map_output.get("last_active_drawing")
         if not drawing and map_output.get("all_drawings"):
@@ -3651,27 +2554,31 @@ def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
                     st.session_state["region_query_result"] = None
                     st.rerun()
 
-    # Contextual Selected Region Toolbar & Action Panel
+    # ──────────────────────────────────────────────────────────
+    # 5. CONTEXTUAL PROGRESSIVE DRAWERS (VESSEL / REGION / SPILL)
+    # ──────────────────────────────────────────────────────────
+    # A. Region Query Drawer (if polygon drawn)
     poly = st.session_state.get("drawn_polygon")
     if poly:
-        st.markdown(f"""
-        <div class="glass-panel" style="padding:12px 18px; margin:10px 0 8px 0; border:1px solid rgba(0, 229, 255, 0.45); border-left:4px solid #00e5ff !important;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <span class="status-pulse-sm" style="background:#00e5ff; box-shadow:0 0 10px #00e5ff;"></span>
-                    <strong style="color:#00e5ff; font-family:'JetBrains Mono'; font-size:12px; letter-spacing:0.06em;">SELECTED GEOSPATIAL REGION:</strong>
-                    <span style="font-family:'JetBrains Mono'; font-size:12px; color:#f8fafc; font-weight:700;">{poly.get('area_km2', 0):.2f} KM²</span>
-                </div>
-                <div style="font-family:'JetBrains Mono'; font-size:11px; color:#94a3b8;">
-                    BOUNDS: [{poly['min_lat']:.4f}°N, {poly['min_lon']:.4f}°E] to [{poly['max_lat']:.4f}°N, {poly['max_lon']:.4f}°E]
+        render_html(f"""
+        <div class="contextual-drawer">
+            <div class="drawer-header">
+                <div>
+                    <span class="telemetry-label" style="color:#00e5ff !important;">GEOSPATIAL REGION SELECTED</span>
+                    <div class="drawer-title" style="margin-top:2px;">
+                        Area: {poly.get('area_km2', 0):.2f} km²
+                    </div>
+                    <div style="font-family:var(--font-mono); font-size:12.5px; color:#94a3b8; margin-top:4px;">
+                        Bounds: [{poly['min_lat']:.4f}°N, {poly['min_lon']:.4f}°E] to [{poly['max_lat']:.4f}°N, {poly['max_lon']:.4f}°E]
+                    </div>
                 </div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
         qcol1, qcol2, qcol3, qcol4 = st.columns([3, 3, 3, 2])
         with qcol1:
-            if st.button("🚢 Query Ships in Region", key="btn_query_ships", use_container_width=True, type="secondary"):
+            if st.button("🚢 Query Ships in Region", key="btn_query_ships", use_container_width=True, type="primary"):
                 ships_in_poly = []
                 tracks = final_state.get("ais_tracks", {}) if final_state else {}
                 if isinstance(tracks, dict):
@@ -3749,59 +2656,59 @@ def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
             if q_type == "ships":
                 v_count = res_data.get("count", 0)
                 items = res_data.get("items", [])
-                st.markdown(f"""
-                <div class="glass-panel" style="padding:12px 16px; margin:8px 0; border-left:3px solid #38bdf8 !important;">
-                    <div style="font-family:'JetBrains Mono'; font-size:12px; color:#38bdf8; font-weight:700;">
+                render_html(f"""
+                <div class="glass-panel" style="padding:14px 18px; margin:8px 0; border-left:3px solid #38bdf8 !important;">
+                    <div style="font-family:var(--font-mono); font-size:13.5px; color:#38bdf8; font-weight:700;">
                         IDENTIFIED {v_count} VESSELS WITHIN BOUNDING CORRIDOR
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+                """)
                 if items:
                     for ship in items[:6]:
-                        st.markdown(f"""
-                        <div style="background:rgba(15, 23, 42, 0.7); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:8px 14px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+                        render_html(f"""
+                        <div style="background:rgba(15, 23, 42, 0.7); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:10px 16px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
                             <div>
-                                <strong style="color:#f8fafc; font-size:12px;">🚢 {ship['name']}</strong>
-                                <span style="font-family:'JetBrains Mono'; font-size:11px; color:#94a3b8; margin-left:8px;">MMSI: {ship['mmsi']}</span>
+                                <strong style="color:#f8fafc; font-size:14px;">🚢 {ship['name']}</strong>
+                                <span style="font-family:var(--font-mono); font-size:12.5px; color:#94a3b8; margin-left:8px;">MMSI: {ship['mmsi']}</span>
                             </div>
-                            <div style="font-family:'JetBrains Mono'; font-size:11px; color:#38bdf8;">
+                            <div style="font-family:var(--font-mono); font-size:13px; color:#38bdf8;">
                                 [{ship['lat']:.4f}°N, {ship['lon']:.4f}°E] • {ship['speed']:.1f} kn
                             </div>
                         </div>
-                        """, unsafe_allow_html=True)
+                        """)
             elif q_type == "spill":
                 c_in = res_data.get("centroid_inside")
                 s_in = res_data.get("source_inside")
                 stat_spill = "YES // INTERSECTS CORRIDOR" if c_in else "NO // OUTSIDE CORRIDOR"
                 stat_src = "YES // ORIGIN IN CORRIDOR" if s_in else "NO // OUTSIDE CORRIDOR"
-                st.markdown(f"""
-                <div class="glass-panel" style="padding:12px 16px; margin:8px 0; border-left:3px solid #ef4444 !important;">
-                    <div style="font-family:'JetBrains Mono'; font-size:12px; color:#ef4444; font-weight:700; margin-bottom:6px;">
+                render_html(f"""
+                <div class="glass-panel" style="padding:14px 18px; margin:8px 0; border-left:3px solid #ef4444 !important;">
+                    <div style="font-family:var(--font-mono); font-size:13.5px; color:#ef4444; font-weight:700; margin-bottom:6px;">
                         SPILL INTERSECTION QUERY RESULTS
                     </div>
-                    <div style="display:flex; gap:24px; font-size:12px; color:#e2e8f0; font-family:'JetBrains Mono';">
+                    <div style="display:flex; gap:24px; font-size:13px; color:#e2e8f0; font-family:var(--font-mono);">
                         <div>SPILL CENTROID: <strong style="color:#f8fafc;">{stat_spill}</strong></div>
                         <div>REVERSE SOURCE: <strong style="color:#f8fafc;">{stat_src}</strong></div>
                         <div>AREA: <strong style="color:#f8fafc;">{res_data.get('spill_area_sq_km', 0):.2f} KM²</strong></div>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+                """)
             elif q_type == "analysis":
-                st.markdown(f"""
-                <div class="glass-panel" style="padding:12px 16px; margin:8px 0; border-left:3px solid #a855f7 !important;">
-                    <div style="font-family:'JetBrains Mono'; font-size:12px; color:#a855f7; font-weight:700; margin-bottom:6px;">
+                render_html(f"""
+                <div class="glass-panel" style="padding:14px 18px; margin:8px 0; border-left:3px solid #a855f7 !important;">
+                    <div style="font-family:var(--font-mono); font-size:13.5px; color:#a855f7; font-weight:700; margin-bottom:6px;">
                         GEOSPATIAL & OCEANOGRAPHIC REGIONAL ASSESSMENT
                     </div>
-                    <div style="display:flex; gap:20px; font-size:12px; color:#e2e8f0; font-family:'JetBrains Mono';">
+                    <div style="display:flex; gap:20px; font-size:13px; color:#e2e8f0; font-family:var(--font-mono);">
                         <div>CURRENT: <strong style="color:#f8fafc;">{res_data.get('current_speed_ms', 0):.2f} m/s @ {res_data.get('current_bearing_deg', 0):.0f}°</strong></div>
                         <div>WIND: <strong style="color:#f8fafc;">{res_data.get('wind_speed_ms', 0):.1f} m/s</strong></div>
-                        <div>COAST PROXIMITY: <strong style="color:#f8fafc;">{res_data.get('shoreline_dist_km', 0):.1f} KM</strong></div>
-                        <div>RISK TIER: <strong style="color:#f8fafc;">{res_data.get('risk_tier', 'N/A')}</strong></div>
+                        <div>COAST: <strong style="color:#f8fafc;">{res_data.get('shoreline_dist_km', 0):.1f} KM</strong></div>
+                        <div>TIER: <strong style="color:#f8fafc;">{res_data.get('risk_tier', 'N/A')}</strong></div>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+                """)
 
-    # Contextual Candidate Vessel Drawer
+    # B. Vessel Drawer (if vessel clicked / selected)
     sel_vessel_mmsi = st.session_state.get("selected_vessel_mmsi")
     if sel_vessel_mmsi:
         v_rec = None
@@ -3826,42 +2733,43 @@ def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
         v_spd = v_rec.get("speed_knots", 0.0) if v_rec else 0.0
         v_hdg = v_rec.get("heading", 0.0) if v_rec else 0.0
         v_type = v_rec.get("vessel_type", "Cargo/Tanker") if v_rec else "Cargo/Tanker"
-        v_time = v_rec.get("timestamp", "2026-09-14 15:30:00 UTC") if v_rec else "2026-09-14 15:30:00 UTC"
+        v_time = v_rec.get("timestamp", "2026-09-14 15:30 UTC") if v_rec else "2026-09-14 15:30 UTC"
 
-        st.markdown(f"""
-        <div class="glass-panel" style="padding:14px 18px; margin:10px 0; border:1px solid rgba(56, 189, 248, 0.45); border-left:4px solid #38bdf8 !important;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
+        render_html(f"""
+        <div class="contextual-drawer" style="border-left:4px solid #38bdf8 !important;">
+            <div class="drawer-header">
                 <div>
-                    <span class="telemetry-label" style="margin:0 !important; color:#38bdf8;">CANDIDATE VESSEL INTELLIGENCE</span>
-                    <div style="font-size:18px; font-weight:800; color:#f8fafc; font-family:'JetBrains Mono'; margin-top:2px;">
-                        🚢 {v_name} <span style="font-size:12px; color:#94a3b8; font-weight:400;">(MMSI: {sel_vessel_mmsi})</span>
+                    <span class="telemetry-label" style="color:#38bdf8 !important;">SELECTED VESSEL TELEMETRY</span>
+                    <div class="drawer-title" style="margin-top:2px;">
+                        🚢 {v_name} <span style="font-size:13.5px; color:#94a3b8; font-weight:400;">(MMSI: {sel_vessel_mmsi})</span>
                     </div>
                 </div>
                 <div style="text-align:right;">
-                    <span class="telemetry-label" style="margin:0 !important;">TRAJECTORY CONSISTENCY</span>
-                    <div style="font-size:20px; font-weight:800; color:#38bdf8; font-family:'JetBrains Mono';">{v_score:.0f}/100</div>
+                    <span class="telemetry-label">ASSOCIATION</span>
+                    <div style="font-size:22px; font-weight:700; color:#38bdf8; font-family:var(--font-mono);">{v_score:.0f}/100</div>
                 </div>
             </div>
-            <div class="telemetry-grid-4" style="margin-top:10px;">
+            <div class="telemetry-grid-4" style="margin-top:12px;">
                 <div class="telemetry-metric-unit">
                     <span class="telemetry-label">POSITION</span>
                     <strong class="telemetry-value-sm">[{v_lat:.4f}°N, {v_lon:.4f}°E]</strong>
                 </div>
                 <div class="telemetry-metric-unit">
-                    <span class="telemetry-label">SPEED // HEADING</span>
-                    <strong class="telemetry-value-sm">{v_spd:.1f} KN // {v_hdg:.0f}°</strong>
+                    <span class="telemetry-label">SPEED // COURSE</span>
+                    <strong class="telemetry-value-sm">{v_spd:.1f} kn // {v_hdg:.0f}°</strong>
                 </div>
                 <div class="telemetry-metric-unit">
-                    <span class="telemetry-label">VESSEL TYPE</span>
+                    <span class="telemetry-label">TYPE</span>
                     <strong class="telemetry-value-sm">{v_type}</strong>
                 </div>
                 <div class="telemetry-metric-unit">
-                    <span class="telemetry-label">LAST TELEMETRY</span>
-                    <strong class="telemetry-value-sm" style="font-size:11px;">{str(v_time)[:19].replace('T', ' ')} UTC</strong>
+                    <span class="telemetry-label">LAST UPDATE</span>
+                    <strong class="telemetry-value-sm">{str(v_time)[:16].replace('T', ' ')} UTC</strong>
                 </div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
+
         vbtn_col1, vbtn_col2, vbtn_col3 = st.columns([3, 3, 6])
         with vbtn_col1:
             if st.button("📍 Focus on Vessel", key="btn_focus_sel_vessel", use_container_width=True, type="primary"):
@@ -3873,742 +2781,270 @@ def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
                 st.session_state["map_focus"] = None
                 st.rerun()
 
-    # ──────────────────────────────────────────────────────────
-    # 4. FLOATING FOCUS & FORENSIC SCRUBBER BAR (BELOW MAP)
-    # ──────────────────────────────────────────────────────────
-    # Dynamic simulation status banner
-    if st.session_state.get("trace_active"):
-        hind_data = final_state.get("hindcast_result", {}) if final_state else {}
-        st.markdown(f"""
-        <div class="glass-panel" style="padding:8px 14px; margin-bottom:8px; border-left:3px solid #f59e0b !important; display:flex; justify-content:space-between; align-items:center;">
-            <div>
-                <span class="status-pulse-sm" style="background:#f59e0b; box-shadow:0 0 8px #f59e0b;"></span>
-                <strong style="color:#f8fafc; font-size:12px; font-family:'JetBrains Mono';">PROGRESSIVE BACKTRACK ACTIVE:</strong>
-                <span style="color:#94a3b8; font-size:12px;"> Traced 180 min back to estimated origin (Bearing: {hind_data.get('current_bearing_deg', 118):.0f}° • Current: {hind_data.get('current_speed_ms', 0.48):.2f} m/s)</span>
-            </div>
-            {render_tag('HINDCAST')}
-        </div>
-        """, unsafe_allow_html=True)
-    elif st.session_state.get("drift_sim_active"):
-        coast_data = final_state.get("coastal_impact", {}) if final_state else {}
-        st.markdown(f"""
-        <div class="glass-panel" style="padding:8px 14px; margin-bottom:8px; border-left:3px solid #0ea5e9 !important; display:flex; justify-content:space-between; align-items:center;">
-            <div>
-                <span class="status-pulse-sm" style="background:#0ea5e9; box-shadow:0 0 8px #0ea5e9;"></span>
-                <strong style="color:#f8fafc; font-size:12px; font-family:'JetBrains Mono';">FORWARD DRIFT SIMULATION ACTIVE:</strong>
-                <span style="color:#94a3b8; font-size:12px;"> Shoreline Distance: {coast_data.get('shortest_distance_to_coast_km', 8.2):.1f} km • Landfall ETA: {coast_data.get('eta_to_coast_hours', 14.5):.1f} hrs</span>
-            </div>
-            {render_tag('PREDICTED')}
-        </div>
-        """, unsafe_allow_html=True)
-
-    ctrl_col1, ctrl_col2, ctrl_col3, ctrl_col4, ctrl_col5, ctrl_col6 = st.columns([2, 2, 2, 2.5, 2.5, 4.5])
-    with ctrl_col1:
-        if st.button("🎯 Focus Spill", key="cmd_foc_spill", use_container_width=True):
-            st.session_state["map_focus"] = "spill"
-            st.session_state["cmd_map_mode"] = "🛢️ SPILL"
-            st.session_state["trace_active"] = False
-            st.session_state["drift_sim_active"] = False
-            st.rerun()
-    with ctrl_col2:
-        if st.button("📍 Focus Origin", key="cmd_foc_origin", use_container_width=True):
-            st.session_state["map_focus"] = "source"
-            st.session_state["cmd_map_mode"] = "🎯 SOURCE"
-            st.session_state["trace_active"] = False
-            st.session_state["drift_sim_active"] = False
-            st.rerun()
-    with ctrl_col3:
-        if st.button("🔄 Reset Center", key="cmd_foc_reset", use_container_width=True):
-            st.session_state["map_focus"] = None
-            st.session_state["selected_vessel_mmsi"] = None
-            st.session_state["cmd_map_mode"] = "🌐 ALL"
-            st.session_state["trace_active"] = False
-            st.session_state["drift_sim_active"] = False
-            st.rerun()
-    with ctrl_col4:
-        is_trace = st.session_state.get("trace_active", False)
-        trace_lbl = "✓ TRACING ACTIVE" if is_trace else "⚡ TRACE SOURCE"
-        if st.button(trace_lbl, key="cmd_trace_source", use_container_width=True, type="primary" if is_trace else "secondary"):
-            st.session_state["trace_active"] = True
-            st.session_state["drift_sim_active"] = False
-            st.session_state["cmd_map_mode"] = "⏱️ BACKTRACK"
-            st.session_state["map_focus"] = "source"
-            st.session_state["timeline_min"] = -180
-            st.rerun()
-    with ctrl_col5:
-        is_drift = st.session_state.get("drift_sim_active", False)
-        drift_lbl = "✓ DRIFT ACTIVE" if is_drift else "🌊 SIMULATE DRIFT"
-        if st.button(drift_lbl, key="cmd_drift_sim", use_container_width=True, type="primary" if is_drift else "secondary"):
-            st.session_state["drift_sim_active"] = True
-            st.session_state["trace_active"] = False
-            st.session_state["cmd_map_mode"] = "🌊 FORWARD DRIFT"
-            st.session_state["map_focus"] = "spill"
-            st.session_state["timeline_min"] = 60
-            st.rerun()
-    with ctrl_col6:
-        c_names = ["All Fleet (Unselected)"] + [f"{c['name']} (MMSI: {c['mmsi']})" for c in cand_list]
-        sel_c_idx = 0
-        if st.session_state.get("selected_vessel_mmsi"):
-            for idx, c in enumerate(cand_list):
-                if str(c["mmsi"]) == str(st.session_state.get("selected_vessel_mmsi")):
-                    sel_c_idx = idx + 1
-                    break
-        chosen_v = st.selectbox(
-            "Target Vessel Selector",
-            c_names,
-            index=sel_c_idx,
-            key="cmd_vessel_selector",
-            label_visibility="collapsed",
-        )
-        if chosen_v != "All Fleet (Unselected)":
-            m_v = next((c for c in cand_list if f"{c['name']} (MMSI: {c['mmsi']})" == chosen_v), None)
-            if m_v:
-                st.session_state["selected_vessel_mmsi"] = m_v["mmsi"]
-        else:
-            st.session_state["selected_vessel_mmsi"] = None
-
-    # Scrub buttons and simulation scrubber
-    sc_c1, sc_c2, sc_c3, sc_c4, sc_c5 = st.columns([1, 1, 1, 1, 4])
-    with sc_c1:
-        if st.button("↺ -180m", key="cmd_scrub_180", use_container_width=True):
-            st.session_state["timeline_min"] = -180
-            st.rerun()
-    with sc_c2:
-        if st.button("◀ -15m", key="cmd_scrub_m15", use_container_width=True):
-            st.session_state["timeline_min"] = max(-180, st.session_state.get("timeline_min", 0) - 15)
-            st.rerun()
-    with sc_c3:
-        if st.button("▶ +15m", key="cmd_scrub_p15", use_container_width=True):
-            st.session_state["timeline_min"] = min(60, st.session_state.get("timeline_min", 0) + 15)
-            st.rerun()
-    with sc_c4:
-        if st.button("🎯 At Detection", key="cmd_scrub_zero", use_container_width=True):
-            st.session_state["timeline_min"] = 0
-            st.rerun()
-    with sc_c5:
-        st.session_state["timeline_min"] = st.slider(
-            "Forensic Timeline",
-            min_value=-180,
-            max_value=60,
-            value=st.session_state.get("timeline_min", 0),
-            step=5,
-            format="%d min",
-            key="slider_cmd_playback",
-            label_visibility="collapsed",
-        )
-
-    # ──────────────────────────────────────────────────────────
-    # 5. DOCKED BOTTOM INTELLIGENCE CONSOLE
-    # ──────────────────────────────────────────────────────────
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("#### 📡 Intelligence Console")
-
-    console_tabs = st.tabs([
-        "⚖️ Multi-Signal Evidence & Consensus",
-        "🚢 AIS Candidate Vessel Attribution",
-        "⏱️ Ocean Drift & Origin Hindcast",
-        "🛡️ Shoreline Threat & Sensitive Assets",
-        "📋 Calibrated Reference Cases",
-    ])
-
-    with console_tabs[0]:
-        render_evidence_panel(final_state, selected_mmsi=st.session_state.get("selected_vessel_mmsi"), key_prefix="cmd_console")
-
-    with console_tabs[1]:
-        if final_state and final_state.get("candidates_done") and cand_list:
-            st.markdown(f"**AIS Feed:** {render_tag(final_state.get('ais_data_mode', 'ARCHIVE'))} • **Correlated Fleet Size:** `{len(cand_list)} Vessels`")
-            for i, cand in enumerate(cand_list):
-                score = cand.get("score", 0.0)
-                score_css = "vessel-score-high" if score >= 70 else ("vessel-score-med" if score >= 40 else "vessel-score-low")
-                bar_color = "#ef4444" if score >= 70 else ("#f59e0b" if score >= 40 else "#64748b")
-                bdown = cand.get("breakdown", {})
-                is_active_vessel = (str(cand.get("mmsi")) == str(st.session_state.get("selected_vessel_mmsi")))
-                border_style = "border:2px solid #00e5ff;" if is_active_vessel else ""
-
-                st.markdown(f"""
-                <div class="vessel-card glass-panel" style="{border_style}">
-                    <div class="vessel-header">
-                        <div>
-                            <span class="telemetry-micro-label">CANDIDATE TARGET #{i+1}</span>
-                            <div class="vessel-name">🚢 {cand.get('name', 'UNKNOWN')}</div>
-                            <span class="vessel-mmsi">MMSI: {cand.get('mmsi')}</span>
-                        </div>
-                        <div style="text-align:right;">
-                            <span class="telemetry-micro-label">ASSOCIATION SCORE</span>
-                            <div class="vessel-score {score_css}">{score:.0f}<span style="font-size:12px; color:#64748b;">/100</span></div>
-                        </div>
-                    </div>
-                    <div class="bar-bg">
-                        <div class="bar-fill" style="width:{score}%; background:{bar_color};"></div>
-                    </div>
-                    <div class="telemetry-grid-4">
-                        <div class="telemetry-metric-unit">
-                            <span class="telemetry-label">SOURCE PROXIMITY</span>
-                            <strong class="telemetry-value-sm">{cand.get('min_distance_km', 0.0):.1f} KM</strong>
-                        </div>
-                        <div class="telemetry-metric-unit">
-                            <span class="telemetry-label">TEMPORAL WINDOW</span>
-                            <strong class="telemetry-value-sm" style="color:{'#34d399' if cand.get('time_match') else '#f87171'};">
-                                {'COINCIDENT' if cand.get('time_match') else 'OUTSIDE WINDOW'}
-                            </strong>
-                        </div>
-                        <div class="telemetry-metric-unit">
-                            <span class="telemetry-label">TRAJECTORY CONSISTENCY</span>
-                            <strong class="telemetry-value-sm">{bdown.get('trajectory', 0.0):.0f}%</strong>
-                        </div>
-                        <div class="telemetry-metric-unit">
-                            <span class="telemetry-label">DRIFT ALIGNMENT</span>
-                            <strong class="telemetry-value-sm">{bdown.get('drift_consistency', 0.0):.0f}%</strong>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                btn_lbl = "✓ Active Target on Primary Canvas" if is_active_vessel else f"🎯 Highlight {cand.get('name', cand.get('mmsi'))} on Map"
-                if st.button(btn_lbl, key=f"cmd_btn_ais_{cand['mmsi']}", use_container_width=True, type="primary" if is_active_vessel else "secondary"):
-                    st.session_state["selected_vessel_mmsi"] = cand["mmsi"]
-                    st.rerun()
-        else:
-            st.info("Execute pipeline to compute spatiotemporal AIS vessel candidate rankings.")
-
-    with console_tabs[2]:
-        if final_state and final_state.get("hindcast_done"):
-            hindcast = final_state.get("hindcast_result", {})
-            h1, h2, h3, h4 = st.columns(4)
-            with h1:
-                st.markdown(f"""
-                <div class="metric-card glass-panel">
-                    <div class="telemetry-label">ESTIMATED ORIGIN</div>
-                    <div class="metric-value" style="font-size:18px;">{hindcast.get('origin_lat', 0.0):.4f}°N</div>
-                    <div class="metric-sub">{hindcast.get('origin_lon', 0.0):.4f}°E // HINDCAST</div>
-                </div>
-                """, unsafe_allow_html=True)
-            with h2:
-                st.markdown(f"""
-                <div class="metric-card glass-panel">
-                    <div class="telemetry-label">SPATIAL UNCERTAINTY</div>
-                    <div class="metric-value">±{final_state.get('source_uncertainty_km', 0.0):.1f}</div>
-                    <div class="metric-sub">KM RADIUS (P95 CONFIDENCE)</div>
-                </div>
-                """, unsafe_allow_html=True)
-            with h3:
-                st.markdown(f"""
-                <div class="metric-card glass-panel">
-                    <div class="telemetry-label">OCEAN CURRENT</div>
-                    <div class="metric-value">{hindcast.get('current_speed_ms', 0.0):.2f} M/S</div>
-                    <div class="metric-sub">BEARING: {hindcast.get('current_bearing_deg', 0.0):.0f}°</div>
-                </div>
-                """, unsafe_allow_html=True)
-            with h4:
-                st.markdown(f"""
-                <div class="metric-card glass-panel">
-                    <div class="telemetry-label">WIND DRIFT FACTOR</div>
-                    <div class="metric-value">3.0%</div>
-                    <div class="metric-sub">EKMAN CURRENT TRANSFER</div>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.info("Execute pipeline to generate ocean drift backtrack vectors and origin uncertainty bounds.")
-
-    with console_tabs[3]:
-        if final_state and final_state.get("risk_done"):
-            coastal = final_state.get("coastal_impact", {})
-            risk_obj = final_state.get("risk_assessment", {})
-            c1, c2, c3, c4 = st.columns(4)
-            with c1:
-                st.markdown(f"""
-                <div class="metric-card glass-panel">
-                    <div class="telemetry-label">SHORELINE PROXIMITY</div>
-                    <div class="metric-value">{coastal.get('shortest_distance_to_coast_km', 0.0):.1f} KM</div>
-                    <div class="metric-sub">NEAREST: {coastal.get('nearest_shoreline_point', {}).get('name', 'N/A').upper()}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            with c2:
-                eta = coastal.get("eta_to_coast_hours")
-                eta_str = f"{eta:.1f} HRS" if eta else "NO LANDFALL"
-                st.markdown(f"""
-                <div class="metric-card glass-panel">
-                    <div class="telemetry-label">LANDFALL ETA</div>
-                    <div class="metric-value">{eta_str}</div>
-                    <div class="metric-sub">TRAJECTORY PROJECTION</div>
-                </div>
-                """, unsafe_allow_html=True)
-            with c3:
-                st.markdown(f"""
-                <div class="metric-card glass-panel">
-                    <div class="telemetry-label">COASTAL VULNERABILITY</div>
-                    <div class="metric-value">{coastal.get('coastal_vulnerability_score', 0.0):.0f}/100</div>
-                    <div class="metric-sub">TIER: {coastal.get('risk_tier', 'LOW')}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            with c4:
-                st.markdown(f"""
-                <div class="metric-card glass-panel">
-                    <div class="telemetry-label">THREATENED ASSETS</div>
-                    <div class="metric-value">{coastal.get('threatened_assets_count', 0)}</div>
-                    <div class="metric-sub">ECOLOGICAL & INFRASTRUCTURE</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            threatened = coastal.get("threatened_assets", [])
-            if threatened:
-                st.markdown("##### 🛡️ Protected Marine & Shoreline Assets in Threat Corridor")
-                for t in threatened:
-                    t_level = t.get("threat_level", "MONITOR")
-                    t_color = "#ef4444" if t_level == "IMMINENT" else ("#f59e0b" if t_level == "HIGH_RISK" else "#00e5ff")
-                    st.markdown(f"""
-                    <div class="glass-panel" style="border-left:3px solid {t_color} !important; padding:12px 16px; margin-bottom:8px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <strong style="color:#f8fafc; font-size:13px;">{t['name']} ({t.get('category', 'Asset').upper()})</strong>
-                            <span style="color:{t_color}; font-weight:700; font-size:10px; font-family:'JetBrains Mono';">{t_level} • ESI {t.get('esi', 5)}/10</span>
-                        </div>
-                        <div style="font-size:11px; font-family:'JetBrains Mono'; color:#94a3b8; margin:4px 0;">
-                            DISTANCE: {t.get('distance_from_spill_km', 0):.1f} KM | AUTHORITY: {t.get('contact_authority', 'Port Trust').upper()}
-                        </div>
-                        <div style="font-size:12px; color:#34d399;">
-                            STRATEGY: {t.get('recommended_strategy', 'Deploy containment booms')}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-        else:
-            st.info("Execute pipeline to compute coastal shoreline approach vectors and environmental sensitivity rankings.")
-
-    with console_tabs[4]:
-        st.markdown("##### 📋 Audited Reference Analyses")
-        col_rec1, col_rec2 = st.columns(2)
-        with col_rec1:
-            st.markdown(f"""
-            <div class="recent-card glass-panel">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                    <div>
-                        <span class="telemetry-micro-label">CASE: BAY-OF-BENGAL-01</span>
-                        <strong style="font-size:16px; color:#f8fafc;">Chennai Port Outer Anchorage</strong>
-                        <div class="telemetry-coords">13.1250°N, 80.3850°E // ANCHORAGE SECTOR</div>
-                    </div>
-                    {render_status_pill('CONFIRMED BY MULTIPLE SIGNALS')}
-                </div>
-                <p style="font-size:12px; color:#94a3b8; margin:12px 0 14px 0; line-height:1.5;">
-                    Genuine maritime mineral oil slick. Primary YOLOv8 segmentation (48% conf) independently verified by K-Means dark cluster extraction and local adaptive thresholding. Radar damping contrast ratio 0.30 in open water.
-                </p>
-                <div class="recent-meta-bar">
-                    <span>ACQUIRED: 2026-09-14 15:30 UTC</span>
-                    <span>SCENE: demo_sar_patch.png</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button("Mount & Analyze Chennai Scene", key="cmd_btn_rec_chennai", use_container_width=True):
-                st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
-                st.session_state["spill_lat"] = CHENNAI_SCENARIO.spill_lat
-                st.session_state["spill_lon"] = CHENNAI_SCENARIO.spill_lon
-                st.session_state["current_scene_name"] = "Chennai Port Outer Anchorage (512x512)"
-                st.session_state["auto_run"] = True
-                st.rerun()
-
-        with col_rec2:
-            st.markdown(f"""
-            <div class="recent-card glass-panel">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                    <div>
-                        <span class="telemetry-micro-label">CASE: BOSPHORUS-STRAIT-02</span>
-                        <strong style="font-size:16px; color:#f8fafc;">Istanbul Bosphorus Strait</strong>
-                        <div class="telemetry-coords">41.1100°N, 29.0500°E // COASTAL SWATH</div>
-                    </div>
-                    {render_status_pill('REJECTED')}
-                </div>
-                <p style="font-size:12px; color:#94a3b8; margin:12px 0 14px 0; line-height:1.5;">
-                    Terrestrial topography negative control. Raw YOLO proposed a candidate polygon over the European landmass; correctly rejected by marine domain constraint (90.9% land overlap) and positive backscatter contrast (1.84).
-                </p>
-                <div class="recent-meta-bar">
-                    <span>ACQUIRED: 2026-09-28 12:20 UTC</span>
-                    <span>SCENE: test_sar_scene.jpg</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button("Mount & Analyze Istanbul Scene", key="cmd_btn_rec_istanbul", use_container_width=True):
-                st.session_state["active_image_path"] = "data/test_sar_scene.jpg"
-                st.session_state["spill_lat"] = 41.1100
-                st.session_state["spill_lon"] = 29.0500
-                st.session_state["current_scene_name"] = "Istanbul Bosphorus Strait (1222x1600)"
-                st.session_state["auto_run"] = True
-                st.rerun()
-
-
 # =========================================================================
 # SECTION 2: SAR INTELLIGENCE (DETECTION & CONSENSUS)
 # =========================================================================
 def render_sar_tab(final_state, is_demo, spill_lat, spill_lon, active_image=None):
     active_image = active_image or st.session_state.get("active_image_path")
     if not active_image or not os.path.exists(active_image):
-        st.info("ℹ️ No SAR imagery loaded. Select a quick scenario from the Command Center or sidebar to begin.")
-    else:
-        # Header banner
-        st.markdown(f"""
-        <div class="sar-viewer-header">
-            <div>
-                <span class="status-pulse-sm"></span>
-                <strong style="font-size:14px; letter-spacing:0.8px; color:#f8fafc; font-family:'JetBrains Mono';">SAR INTELLIGENCE WORKSPACE</strong>
-                <span style="color:#64748b; font-size:12px; margin-left:8px;">// {st.session_state.get('current_scene_name', 'Active SAR Scene')}</span>
+        st.info("ℹ️ No SAR imagery loaded. Select a quick scenario or upload imagery to begin.")
+        return
+
+    # Header banner
+    render_html(f"""
+    <div class="sar-viewer-header">
+        <div>
+            <strong style="font-size:16px; color:#f8fafc; font-family:var(--font-sans);">SAR Detection & Consensus Analysis</strong>
+            <span style="color:#64748b; font-size:13px; margin-left:8px;">// {st.session_state.get('current_scene_name', 'Active Swath')}</span>
+        </div>
+        <div>
+            {render_tag('SIMULATED' if is_demo else 'OBSERVED')}
+        </div>
+    </div>
+    """)
+
+    # Main 2-Column Workspace: LEFT (60% Viewer) & RIGHT (40% Analysis Inspector)
+    sar_left_col, sar_right_col = st.columns([12, 9])
+
+    with sar_left_col:
+        st.markdown("##### 🛰️ Sensor Swath & Visual Layers")
+
+        layer_options = [
+            "🛰️ Composite Overlay",
+            "📷 Raw SAR Amplitude",
+            "🎯 YOLO Detection Mask",
+            "🌊 Land/Sea Domain Mask",
+            "⚖️ Classical Validation",
+            "✅ Final Consensus",
+            "📊 6-Panel Diagnostic Matrix",
+        ]
+        selected_layer = st.radio(
+            "Active SAR Layer",
+            layer_options,
+            index=0,
+            horizontal=True,
+            key="sar_tab2_layer_sel",
+            label_visibility="collapsed",
+        )
+
+        layer_key_map = {
+            "🛰️ Composite Overlay": "composite",
+            "📷 Raw SAR Amplitude": "raw",
+            "🎯 YOLO Detection Mask": "yolo",
+            "🌊 Land/Sea Domain Mask": "landmask",
+            "⚖️ Classical Validation": "classical",
+            "✅ Final Consensus": "final",
+            "📊 6-Panel Diagnostic Matrix": "diagnostics",
+        }
+        active_layer_key = layer_key_map.get(selected_layer, "composite")
+
+        sar_meta_data = final_state.get("sar_metadata", {}) if final_state else {}
+        bbox = sar_meta_data.get("bbox") if sar_meta_data else None
+        s_lat = final_state.get("spill_lat", spill_lat) if final_state else spill_lat
+        s_lon = final_state.get("spill_lon", spill_lon) if final_state else spill_lon
+        char_data = final_state.get("characterization", {}) if final_state else {}
+        area_val = char_data.get("area_sq_km", final_state.get("spill_area_sq_km", 0.0) if final_state else 0.0)
+        y_conf = final_state.get("detection_confidence", 0.0) if final_state else 0.0
+        all_c = final_state.get("all_spill_coords", []) if final_state else []
+
+        sar_map = folium.Map(
+            location=[s_lat, s_lon],
+            zoom_start=13,
+            tiles="OpenStreetMap",
+        )
+
+        try:
+            raw_img = cv2.imread(active_image)
+            dims = (raw_img.shape[0], raw_img.shape[1]) if raw_img is not None else (512, 512)
+        except Exception:
+            dims = (512, 512)
+
+        res_m = float(sar_meta_data.get("resolution_meters", 10.0))
+        half_w = (dims[1] * res_m / 1000.0) / 111.32 / 2.0
+        half_h = (dims[0] * res_m / 1000.0) / 111.32 / 2.0
+        bounds = [[s_lat - half_h, s_lon - half_w], [s_lat + half_h, s_lon + half_w]]
+
+        folium.Rectangle(
+            bounds=bounds,
+            color="#38bdf8",
+            weight=1,
+            fill=True,
+            fill_color="#0284c7",
+            fill_opacity=0.08,
+            popup="SAR Coverage Swath",
+        ).add_to(sar_map)
+
+        if all_c:
+            for c_group in all_c:
+                if len(c_group) >= 3:
+                    folium.Polygon(
+                        locations=c_group,
+                        color="#ef4444",
+                        weight=2,
+                        fill=True,
+                        fill_color="#ef4444",
+                        fill_opacity=0.45,
+                        popup=f"Confirmed Oil Slick: {area_val:.2f} km²",
+                    ).add_to(sar_map)
+        else:
+            folium.CircleMarker(
+                location=[s_lat, s_lon],
+                radius=14,
+                color="#ef4444",
+                weight=2,
+                fill=True,
+                fill_color="#ef4444",
+                fill_opacity=0.5,
+                popup=f"Observed Slick Centroid: {area_val:.2f} km²",
+            ).add_to(sar_map)
+
+        st_folium(sar_map, height=560, use_container_width=True, key="sar_intelligence_canvas_map", returned_objects=[])
+
+    with sar_right_col:
+        st.markdown("##### 🔬 Incident Inspector")
+
+        acq_time = sar_meta_data.get("acquisition_timestamp") or (final_state.get("detection_timestamp", "2026-09-14 15:30 UTC") if final_state else "2026-09-14 15:30 UTC")
+        sensor_name = sar_meta_data.get("sensor", "Sentinel-1A [C-Band SAR]") if sar_meta_data else "Sentinel-1A [C-Band SAR]"
+        val_status = final_state.get("validation_status", "AWAITING SENSOR PASS") if final_state else "STANDBY"
+        val_res = normalize_validation_result(final_state.get("validation_result") if final_state else None)
+        c_agree = val_res.get("classical_agreement", 0.0)
+        contrast_val = val_res.get("contrast_ratio", 1.0)
+        land_frac = val_res.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)
+        look_risk = val_res.get("look_alike_risk", 0.0)
+        spill_detected_flag = final_state.get("spill_detected", False) if final_state else False
+
+        # 1. Clean Default Inspector (Section 16: Detection, Status, Area, Confidence)
+        det_status_str = "OIL SLICK DETECTED" if (spill_detected_flag and val_status != "REJECTED") else "NO ANOMALY"
+        det_badge_class = "badge-confirmed" if (spill_detected_flag and val_status != "REJECTED") else "badge-rejected"
+
+        render_html(f"""
+        <div class="glass-panel" style="padding:16px; margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="telemetry-label">INSPECTION SUMMARY</span>
+                <span class="status-badge {det_badge_class}">{det_status_str}</span>
             </div>
-            <div>
-                {render_tag('SIMULATED' if is_demo else 'OBSERVED')}
+            <div style="margin:10px 0 12px 0;">
+                {render_status_pill(val_status)}
+            </div>
+            <div class="telemetry-grid-4">
+                <div class="telemetry-metric-unit">
+                    <span class="telemetry-label">CONFIDENCE</span>
+                    <strong class="telemetry-value" style="font-size:22px; color:#00e5ff;">{y_conf:.1%}</strong>
+                </div>
+                <div class="telemetry-metric-unit">
+                    <span class="telemetry-label">SLICK AREA</span>
+                    <strong class="telemetry-value" style="font-size:22px;">{area_val:.2f} km²</strong>
+                </div>
+                <div class="telemetry-metric-unit">
+                    <span class="telemetry-label">DAMPING</span>
+                    <strong class="telemetry-value" style="font-size:22px;">{contrast_val:.2f}</strong>
+                </div>
+                <div class="telemetry-metric-unit">
+                    <span class="telemetry-label">CONSENSUS</span>
+                    <strong class="telemetry-value" style="font-size:22px;">{c_agree:.0%}</strong>
+                </div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
-        # Main 2-Column Workspace: LEFT (65% Viewer) & RIGHT (35% Analysis Inspector)
-        sar_left_col, sar_right_col = st.columns([13, 8])
+        # 2. Expandable Technical Details (Section 16)
+        with st.expander("Consensus Validation Details", expanded=False):
+            st.markdown(f"**Explanation:** {val_res.get('explanation', 'Awaiting consensus evaluation.')}")
+            c_v1, c_v2 = st.columns(2)
+            with c_v1:
+                st.metric("Land Overlap", f"{land_frac:.1%}")
+            with c_v2:
+                st.metric("Look-Alike Risk", f"{look_risk:.0%}")
 
-        # ──────────────────────────────────────────────────────────
-        # LEFT: LARGE SAR IMAGE VIEWER (PAN, ZOOM, LAYER TOGGLES)
-        # ──────────────────────────────────────────────────────────
-        with sar_left_col:
-            st.markdown("##### 🛰️ Sensor Swath & Visual Layers")
+        with st.expander("Geometry & Physical Properties", expanded=False):
+            g_c1, g_c2 = st.columns(2)
+            with g_c1:
+                st.metric("Pixel Count", f"{char_data.get('area_px', 0):.0f} px")
+                st.metric("Solidity", f"{char_data.get('solidity', 1.0):.3f}")
+            with g_c2:
+                st.metric("Aspect Ratio", f"{char_data.get('aspect_ratio', 1.0):.2f}")
+                st.metric("Orientation", f"{char_data.get('orientation_deg', 0):.1f}°")
 
-            # Layer selector pills
-            layer_options = [
-                "🛰️ Composite Overlay",
-                "📷 Raw SAR Amplitude",
-                "🎯 YOLO Detection Mask",
-                "🌊 Land/Sea Domain Mask",
-                "⚖️ Classical Validation",
-                "✅ Final Consensus",
-                "📊 6-Panel Diagnostic Matrix",
-            ]
-            selected_layer = st.radio(
-                "Active SAR Intelligence Layer",
-                layer_options,
-                index=0,
-                horizontal=True,
-                key="sar_tab2_layer_sel",
-                label_visibility="collapsed",
-            )
+        with st.expander("Technical Radar Metadata", expanded=False):
+            st.markdown(f"**Sensor:** {sensor_name}")
+            st.markdown(f"**Acquisition Time:** {acq_time}")
+            st.markdown(f"**GSD:** {res_m:.1f} m/px")
+            st.markdown(f"**Raster Dimensions:** {dims[1]} × {dims[0]} px")
 
-            # Map layer string to internal key
-            layer_key_map = {
-                "🛰️ Composite Overlay": "composite",
-                "📷 Raw SAR Amplitude": "raw",
-                "🎯 YOLO Detection Mask": "yolo",
-                "🌊 Land/Sea Domain Mask": "landmask",
-                "⚖️ Classical Validation": "classical",
-                "✅ Final Consensus": "final",
-                "📊 6-Panel Diagnostic Matrix": "diagnostics",
-            }
-            active_layer_key = layer_key_map.get(selected_layer, "composite")
+        # 3. Clean Redesigned Vertical Evidence Timeline (Section 15)
+        render_html("<br>")
+        land_pass = land_frac < 0.20
+        class_pass = c_agree >= 0.15 or contrast_val < 0.75
+        final_pass = (val_status in ("CONFIRMED BY MULTIPLE SIGNALS", "PROBABLE"))
 
-            # Controls: Viewer engine + Zoom presets
-            col_v_eng, col_v_zoom = st.columns([1, 1])
-            with col_v_eng:
-                viewer_engine = st.radio(
-                    "Viewer Engine",
-                    ["🗺️ Interactive Canvas (Pan / Zoom / Inspect)", "🔬 High-Resolution Raster"],
-                    index=0,
-                    horizontal=True,
-                    key="sar_tab2_engine_sel",
-                )
-            with col_v_zoom:
-                zoom_choice = st.select_slider(
-                    "Magnification Presets",
-                    options=["100% (Fit)", "150% (Standard)", "200% (High Detail)", "300% (Pixel Forensics)"],
-                    value="100% (Fit)",
-                    key="sar_tab2_zoom_slider",
-                )
-
-            # Render Image based on chosen engine
-            if viewer_engine == "🗺️ Interactive Canvas (Pan / Zoom / Inspect)":
-                sar_meta_data = final_state.get("sar_metadata", {}) if final_state else {}
-                bbox = sar_meta_data.get("bbox") if sar_meta_data else None
-                s_lat = final_state.get("spill_lat", spill_lat) if final_state else spill_lat
-                s_lon = final_state.get("spill_lon", spill_lon) if final_state else spill_lon
-                char_data = final_state.get("characterization", {}) if final_state else {}
-                area_val = char_data.get("area_sq_km", final_state.get("spill_area_sq_km", 0.0) if final_state else 0.0)
-                y_conf = final_state.get("detection_confidence", 0.0) if final_state else 0.0
-                all_c = final_state.get("all_spill_coords", []) if final_state else []
-
-                # Build Leaflet Map for SAR Swath with Pan and Zoom
-                sar_map = folium.Map(
-                    location=[s_lat, s_lon],
-                    zoom_start=13,
-                    tiles="OpenStreetMap",
-                    control_scale=True,
-                )
-                Fullscreen(position="topright").add_to(sar_map)
-
-                if bbox and len(bbox) == 4:
-                    min_lat, min_lon, max_lat, max_lon = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
-                    # Add ImageOverlay
-                    folium.raster_layers.ImageOverlay(
-                        image=active_image,
-                        bounds=[[min_lat, min_lon], [max_lat, max_lon]],
-                        opacity=0.88,
-                        name="SAR Amplitude Swath",
-                    ).add_to(sar_map)
-
-                    # Project polygons with interactive hover and click inspection
-                    h_r, w_r = (512, 512)
-                    if sar_meta_data and "dimensions" in sar_meta_data:
-                        h_r, w_r = sar_meta_data["dimensions"][0], sar_meta_data["dimensions"][1]
-
-                    for p_idx, poly in enumerate(all_c):
-                        if poly and len(poly) >= 3:
-                            geo_p = []
-                            for pt in poly:
-                                px_x, px_y = float(pt[0]), float(pt[1])
-                                pt_lat = max_lat - (px_y / h_r) * (max_lat - min_lat)
-                                pt_lon = min_lon + (px_x / w_r) * (max_lon - min_lon)
-                                geo_p.append([pt_lat, pt_lon])
-
-                            folium.Polygon(
-                                locations=geo_p,
-                                color="#00e5ff",
-                                weight=3,
-                                fill=True,
-                                fill_color="#ef4444",
-                                fill_opacity=0.45,
-                                tooltip=f"🔍 Hover: Candidate Polygon #{p_idx+1} | Confidence: {y_conf:.1%} | Area: {area_val:.2f} km²",
-                                popup=f"""<div style="font-family:'JetBrains Mono',monospace; font-size:12px; min-width:210px;">
-                                    <strong style="color:#00e5ff;">DETECTED OIL SLICK #{p_idx+1}</strong><br>
-                                    <b>YOLOv8 Confidence:</b> {y_conf:.1%}<br>
-                                    <b>Slick Area:</b> {area_val:.3f} km²<br>
-                                    <b>Centroid:</b> {s_lat:.4f}°N, {s_lon:.4f}°E<br>
-                                    <b>Vertices:</b> {len(poly)} points
-                                </div>""",
-                            ).add_to(sar_map)
-
-                    folium.Marker(
-                        location=[s_lat, s_lon],
-                        icon=folium.DivIcon(
-                            html='<div style="font-size:11px; color:#ef4444; font-weight:700; white-space:nowrap; background:rgba(11,17,32,0.9); border:1px solid #ef4444; padding:2px 6px; border-radius:4px; margin-top:-25px; margin-left:-20px;">🛢️ SLICK CENTROID</div>'
-                        ),
-                    ).add_to(sar_map)
-
-                st_folium(sar_map, height=520, use_container_width=True, key="sar_intelligence_canvas_map", returned_objects=[])
-                st.caption("🖱️ **Interaction:** Scroll wheel to zoom (9x-18x) • Click & drag to pan • Hover over polygon for live telemetry • Click polygon for forensic popup.")
-            else:
-                # High Resolution Raster with Layer Switcher
-                layer_img = generate_sar_layer_image(active_image, active_layer_key, final_state or {})
-                if layer_img is not None:
-                    zoom_factor = 1.0
-                    if "150%" in zoom_choice:
-                        zoom_factor = 1.5
-                    elif "200%" in zoom_choice:
-                        zoom_factor = 2.0
-                    elif "300%" in zoom_choice:
-                        zoom_factor = 3.0
-
-                    if zoom_factor > 1.0:
-                        h_orig, w_orig = layer_img.shape[:2]
-                        layer_img = cv2.resize(layer_img, (int(w_orig * zoom_factor), int(h_orig * zoom_factor)), interpolation=cv2.INTER_LINEAR)
-
-                    st.image(layer_img, use_container_width=True, caption=f"SAR Intelligence Layer: {selected_layer} ({zoom_choice})")
-
-            # Interactive Polygon List & Inspector
-            all_c = final_state.get("all_spill_coords", []) if final_state else []
-            if all_c:
-                st.markdown("###### 📐 Detected Polygon Geometries")
-                for p_idx, poly in enumerate(all_c):
-                    pts_np = np.array(poly)
-                    min_x, min_y = pts_np.min(axis=0)
-                    max_x, max_y = pts_np.max(axis=0)
-                    st.markdown(f"""
-                    <div class="polygon-chip">
-                        <span style="color:#00e5ff; font-weight:700;">POLYGON #{p_idx+1}</span>
-                        <span>VERTICES: {len(poly)}</span>
-                        <span>BBOX: [{int(min_x)}, {int(min_y)}, {int(max_x)}, {int(max_y)}]</span>
-                        <span>SPAN: {int(max_x - min_x)}×{int(max_y - min_y)} PX</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-        # ──────────────────────────────────────────────────────────
-        # RIGHT: RIGOROUS ANALYSIS INSPECTOR (GROUNDED IN REAL DATA)
-        # ──────────────────────────────────────────────────────────
-        with sar_right_col:
-            st.markdown("##### 🔬 Analysis Inspector")
-
-            sar_meta_data = final_state.get("sar_metadata", {}) if final_state else {}
-            dims = sar_meta_data.get("dimensions", [512, 512]) if sar_meta_data else [512, 512]
-            res_m = sar_meta_data.get("pixel_resolution_m", 10.0) if sar_meta_data else 10.0
-            bbox = sar_meta_data.get("bbox") if sar_meta_data else None
-            acq_time = sar_meta_data.get("acquisition_timestamp") or (final_state.get("detection_timestamp", "2026-09-14 15:30:00 UTC") if final_state else "2026-09-14 15:30:00 UTC")
-            sensor_name = sar_meta_data.get("sensor", "Sentinel-1A [C-Band SAR]") if sar_meta_data else "Sentinel-1A [C-Band SAR]"
-
-            char_data = final_state.get("characterization", {}) if final_state else {}
-            area_val = char_data.get("area_sq_km", final_state.get("spill_area_sq_km", 0.0) if final_state else 0.0)
-            y_conf = final_state.get("detection_confidence", 0.0) if final_state else 0.0
-            val_status = final_state.get("validation_status", "AWAITING SENSOR PASS") if final_state else "STANDBY"
-            val_res = normalize_validation_result(final_state.get("validation_result") if final_state else None)
-            c_agree = val_res.get("classical_agreement", 0.0)
-            contrast_val = val_res.get("contrast_ratio", 1.0)
-            land_frac = val_res.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)
-            look_risk = val_res.get("look_alike_risk", 0.0)
-            spill_detected_flag = final_state.get("spill_detected", False) if final_state else False
-
-            # 1. SAR SCENE HIERARCHY
-            bbox_str = f"[{bbox[0]:.4f}, {bbox[1]:.4f}] to [{bbox[2]:.4f}, {bbox[3]:.4f}]" if (bbox and len(bbox) == 4) else f"{spill_lat:.4f}°N, {spill_lon:.4f}°E"
-            st.markdown(f"""
-            <div class="glass-panel" style="padding:14px; margin-bottom:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="telemetry-label" style="margin:0 !important;">SAR SCENE TELEMETRY</span>
-                    {render_tag('SENTINEL-1')}
-                </div>
-                <div style="margin-top:8px;" class="telemetry-grid-4">
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">SENSOR PLATFORM</span>
-                        <strong class="telemetry-value-sm">{sensor_name}</strong>
-                    </div>
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">ACQUISITION TIME</span>
-                        <strong class="telemetry-value-sm" style="font-size:11px;">{acq_time[:19].replace('T', ' ')} UTC</strong>
-                    </div>
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">SPATIAL GSD</span>
-                        <strong class="telemetry-value-sm">{res_m:.1f} M/PX</strong>
-                    </div>
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">RASTER EXTENT</span>
-                        <strong class="telemetry-value-sm">{dims[1]} × {dims[0]} PX</strong>
-                    </div>
-                </div>
-                <div class="telemetry-coords" style="margin-top:8px;">BBOX: {bbox_str} // CRS: EPSG:4326</div>
+        render_html(f"""
+        <div class="evidence-timeline">
+            <div style="font-size:14px; font-weight:700; color:#f8fafc; margin-bottom:8px; font-family:var(--font-sans);">
+                EVIDENCE SYNTHESIS TIMELINE
             </div>
-            """, unsafe_allow_html=True)
 
-            # 2. DETECTION HIERARCHY
-            det_status_str = "VALIDATED OIL SLICK" if (spill_detected_flag and val_status != "REJECTED") else ("REJECTED / NO ANOMALY" if val_status == "REJECTED" else "STANDBY")
-            det_badge_class = "tag-observed" if (spill_detected_flag and val_status != "REJECTED") else "tag-simulated"
-            c_px = char_data.get("centroid_px", [0.0, 0.0])
-            st.markdown(f"""
-            <div class="glass-panel" style="padding:14px; margin-bottom:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="telemetry-label" style="margin:0 !important;">YOLOv8 DEEP DETECTION</span>
-                    <span class="data-tag {det_badge_class}">{det_status_str}</span>
+            <div class="timeline-step" style="border-left-color: #10b981;">
+                <div class="timeline-step-badge">01</div>
+                <div class="timeline-step-content">
+                    <div class="timeline-step-title">SENSOR ACQUISITION</div>
+                    <div class="timeline-step-desc">{sensor_name} · {dims[1]}×{dims[0]} px · {res_m:.1f}m GSD</div>
                 </div>
-                <div style="margin-top:8px;" class="telemetry-grid-4">
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">CONFIDENCE</span>
-                        <strong class="telemetry-value-sm">{y_conf:.1%}</strong>
-                    </div>
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">SLICK AREA</span>
-                        <strong class="telemetry-value-sm">{area_val:.3f} KM²</strong>
-                    </div>
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">PIXEL COUNT</span>
-                        <strong class="telemetry-value-sm">{char_data.get('area_px', 0):.0f} PX</strong>
-                    </div>
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">ASPECT RATIO</span>
-                        <strong class="telemetry-value-sm">{char_data.get('aspect_ratio', 1.0):.2f}</strong>
-                    </div>
+                <div class="timeline-step-status status-pass">INGESTED</div>
+            </div>
+
+            <div class="timeline-arrow">↓</div>
+
+            <div class="timeline-step" style="border-left-color: {'#10b981' if spill_detected_flag else '#ef4444'};">
+                <div class="timeline-step-badge">02</div>
+                <div class="timeline-step-content">
+                    <div class="timeline-step-title">SPILL DETECTION</div>
+                    <div class="timeline-step-desc">YOLOv8 Segmentation · Confidence: {y_conf:.1%} · Area: {area_val:.2f} km²</div>
                 </div>
-                <div class="telemetry-coords" style="margin-top:8px;">
-                    CENTROID: ({c_px[0]:.1f}, {c_px[1]:.1f}) PX • ORIENTATION: {char_data.get('orientation_deg', 0):.1f}° • SOLIDITY: {char_data.get('solidity', 1.0):.3f}
+                <div class="timeline-step-status {'status-pass' if spill_detected_flag else 'status-fail'}">
+                    {'DETECTED' if spill_detected_flag else 'NO ANOMALY'}
                 </div>
             </div>
-            """, unsafe_allow_html=True)
 
-            # 3. VALIDATION HIERARCHY
-            st.markdown(f"""
-            <div class="glass-panel" style="padding:14px; margin-bottom:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="telemetry-label" style="margin:0 !important;">MULTI-SIGNAL VALIDATION</span>
-                    {render_tag('CONSENSUS')}
+            <div class="timeline-arrow">↓</div>
+
+            <div class="timeline-step" style="border-left-color: {'#10b981' if land_pass else '#ef4444'};">
+                <div class="timeline-step-badge">03</div>
+                <div class="timeline-step-content">
+                    <div class="timeline-step-title">LAND / SEA VALIDATION</div>
+                    <div class="timeline-step-desc">Marine Domain Constraint · Land Overlap: {land_frac:.1%}</div>
                 </div>
-                <div style="margin-top:8px;" class="telemetry-grid-4">
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">CONSENSUS</span>
-                        <strong class="telemetry-value-sm">{c_agree:.0%}</strong>
-                    </div>
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">DAMPING RATIO</span>
-                        <strong class="telemetry-value-sm">{contrast_val:.2f}</strong>
-                    </div>
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">LAND OVERLAP</span>
-                        <strong class="telemetry-value-sm" style="color:{'#34d399' if land_frac < 0.20 else '#f87171'};">{land_frac:.1%}</strong>
-                    </div>
-                    <div class="telemetry-metric-unit">
-                        <span class="telemetry-label">LOOK-ALIKE RISK</span>
-                        <strong class="telemetry-value-sm">{look_risk:.0%}</strong>
-                    </div>
-                </div>
-                <div style="margin-top:10px;">
-                    {render_status_pill(val_status)}
+                <div class="timeline-step-status {'status-pass' if land_pass else 'status-fail'}">
+                    {'VALID MARINE' if land_pass else 'REJECTED LAND'}
                 </div>
             </div>
-            """, unsafe_allow_html=True)
 
-            # 4. EVIDENCE TIMELINE (RAW -> DETECTION -> LAND/SEA -> CLASSICAL -> FINAL)
-            land_pass = land_frac < 0.20
-            class_pass = c_agree >= 0.15 or contrast_val < 0.75
-            final_pass = (val_status in ("CONFIRMED BY MULTIPLE SIGNALS", "PROBABLE"))
+            <div class="timeline-arrow">↓</div>
 
-            st.markdown(f"""
-            <div class="evidence-timeline glass-panel">
-                <span class="telemetry-label" style="margin-bottom:10px !important; display:block;">EVIDENCE TIMELINE</span>
-
-                <!-- 1. RAW -->
-                <div class="timeline-step">
-                    <div class="timeline-step-badge">1. RAW</div>
-                    <div class="timeline-step-content">
-                        <div class="timeline-step-title">SENSOR ACQUISITION</div>
-                        <div class="timeline-step-desc">{sensor_name} • {dims[1]}×{dims[0]} px • {res_m:.1f}m GSD</div>
-                    </div>
-                    <div class="timeline-step-status status-pass">INGESTED</div>
+            <div class="timeline-step" style="border-left-color: {'#10b981' if class_pass else '#fbbf24'};">
+                <div class="timeline-step-badge">04</div>
+                <div class="timeline-step-content">
+                    <div class="timeline-step-title">CLASSICAL CONSENSUS</div>
+                    <div class="timeline-step-desc">6-Algorithm Consensus · Agreement: {c_agree:.0%} · Damping: {contrast_val:.2f}</div>
                 </div>
-                <div class="timeline-arrow">↓</div>
-
-                <!-- 2. DETECTION -->
-                <div class="timeline-step">
-                    <div class="timeline-step-badge">2. DETECTION</div>
-                    <div class="timeline-step-content">
-                        <div class="timeline-step-title">YOLOv8 DEEP SEGMENTATION</div>
-                        <div class="timeline-step-desc">Confidence: {y_conf:.1%} • Polygons: {len(all_c)} • Area: {area_val:.2f} km²</div>
-                    </div>
-                    <div class="timeline-step-status {'status-pass' if spill_detected_flag else 'status-fail'}">
-                        {'DETECTED' if spill_detected_flag else 'NO ANOMALY'}
-                    </div>
-                </div>
-                <div class="timeline-arrow">↓</div>
-
-                <!-- 3. LAND/SEA FILTER -->
-                <div class="timeline-step">
-                    <div class="timeline-step-badge">3. LAND/SEA FILTER</div>
-                    <div class="timeline-step-content">
-                        <div class="timeline-step-title">MARINE DOMAIN CONSTRAINT</div>
-                        <div class="timeline-step-desc">Land Overlap: {land_frac:.1%} • Constraint: {'PASSED (OPEN WATER)' if land_pass else 'FAILED (TERRESTRIAL)'}</div>
-                    </div>
-                    <div class="timeline-step-status {'status-pass' if land_pass else 'status-fail'}">
-                        {'VALID MARINE' if land_pass else 'REJECTED LAND'}
-                    </div>
-                </div>
-                <div class="timeline-arrow">↓</div>
-
-                <!-- 4. CLASSICAL VALIDATION -->
-                <div class="timeline-step">
-                    <div class="timeline-step-badge">4. CLASSICAL VALIDATION</div>
-                    <div class="timeline-step-content">
-                        <div class="timeline-step-title">6-ALGORITHM CONSENSUS</div>
-                        <div class="timeline-step-desc">Agreement: {c_agree:.0%} • Damping Contrast: {contrast_val:.2f}</div>
-                    </div>
-                    <div class="timeline-step-status {'status-pass' if class_pass else 'status-warn'}">
-                        {'CONFIRMED' if class_pass else 'DISCORDANT'}
-                    </div>
-                </div>
-                <div class="timeline-arrow">↓</div>
-
-                <!-- 5. FINAL CONSENSUS -->
-                <div class="timeline-step" style="border-left:3px solid {'#10b981' if final_pass else '#ef4444'} !important;">
-                    <div class="timeline-step-badge" style="color:{'#10b981' if final_pass else '#ef4444'};">5. FINAL</div>
-                    <div class="timeline-step-content">
-                        <div class="timeline-step-title">INCIDENT DISPOSITION</div>
-                        <div class="timeline-step-desc">{val_res.get('explanation', 'Awaiting consensus evaluation.')}</div>
-                    </div>
-                    <div class="timeline-step-status {'status-pass' if final_pass else 'status-fail'}">
-                        {val_status}
-                    </div>
+                <div class="timeline-step-status {'status-pass' if class_pass else 'status-warn'}">
+                    {'CONFIRMED' if class_pass else 'DISCORDANT'}
                 </div>
             </div>
-            """, unsafe_allow_html=True)
 
+            <div class="timeline-arrow">↓</div>
+
+            <div class="timeline-step" style="border-left-color: {'#10b981' if final_pass else '#ef4444'};">
+                <div class="timeline-step-badge">05</div>
+                <div class="timeline-step-content">
+                    <div class="timeline-step-title">INCIDENT DISPOSITION</div>
+                    <div class="timeline-step-desc">{val_res.get('explanation', 'Awaiting consensus evaluation.')}</div>
+                </div>
+                <div class="timeline-step-status {'status-pass' if final_pass else 'status-fail'}">
+                    {val_status}
+                </div>
+            </div>
+        </div>
+        """)
 
 # =========================================================================
 # SECTION 3: RADAR CALIBRATION SCREEN
@@ -4624,37 +3060,37 @@ def render_calibration_tab(final_state, is_demo, active_image=None):
 
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
         with m_col1:
-            st.markdown(f"""
+            render_html(f"""
             <div class="metric-card glass-panel">
                 <div class="telemetry-label">RASTER EXTENT</div>
                 <div class="metric-value">{w} × {h}</div>
                 <div class="metric-sub">PIXELS (GRD)</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
         with m_col2:
-            st.markdown(f"""
+            render_html(f"""
             <div class="metric-card glass-panel">
                 <div class="telemetry-label">SPATIAL GSD</div>
                 <div class="metric-value">2.0</div>
                 <div class="metric-sub">METERS / PIXEL</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
         with m_col3:
-            st.markdown(f"""
+            render_html(f"""
             <div class="metric-card glass-panel">
                 <div class="telemetry-label">INTENSITY DYNAMICS</div>
                 <div class="metric-value">{img_raw.min()} – {img_raw.max()}</div>
                 <div class="metric-sub">8-BIT RADAR DN (0-255)</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
         with m_col4:
-            st.markdown(f"""
+            render_html(f"""
             <div class="metric-card glass-panel">
                 <div class="telemetry-label">MEAN BACKSCATTER</div>
                 <div class="metric-value">{img_raw.mean():.1f}</div>
                 <div class="metric-sub">STD DEV: {img_raw.std():.1f} DN</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
 
         st.markdown("---")
 
@@ -4683,16 +3119,14 @@ def render_calibration_tab(final_state, is_demo, active_image=None):
 # SECTION 4: AIS CORRELATION & CANDIDATE VESSELS SCREEN
 # =========================================================================
 def render_ais_tab(final_state, is_demo):
-    st.markdown("#### 🚢 AIS Candidate Vessel Intelligence & Spatiotemporal Correlation")
-    st.caption("Operational multi-factor spatiotemporal correlation fusing commercial AIS fleet telemetry with estimated slick origin.")
+    st.markdown("#### 🚢 AIS Candidate Vessel Intelligence & Attribution")
+    st.caption("Multi-factor spatiotemporal correlation fusing commercial AIS fleet telemetry with estimated slick origin.")
 
-    # Methodology and Non-Liability Disclaimer
-    st.markdown("""
-    <div class="glass-panel" style="border-left:3px solid #00e5ff !important; padding:12px 16px; margin-bottom:14px; font-size:12px; color:#94a3b8;">
-        ⚖️ <strong style="color:#f8fafc;">LEGAL DISCLOSURE:</strong> Candidate vessel associations reflect mathematical spatiotemporal alignment between vessel trajectories and estimated spill origin zones. 
-        They do <strong>NOT</strong> constitute legal proof of liability, operational negligence, or regulatory sanction.
+    render_html("""
+    <div class="glass-panel" style="border-left:3px solid #00e5ff !important; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#94a3b8;">
+        ⚖️ <strong style="color:#f8fafc;">LEGAL DISCLOSURE:</strong> Candidate vessel associations reflect mathematical spatiotemporal alignment with estimated spill origin zones. They do <strong>NOT</strong> constitute legal proof of liability or regulatory sanction.
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
     if final_state and final_state.get("candidates_done"):
         candidates = final_state.get("candidate_scores", [])
@@ -4705,394 +3139,120 @@ def render_ais_tab(final_state, is_demo):
         det_ts = final_state.get("detection_timestamp")
         base_time = datetime.fromisoformat(det_ts) if det_ts else datetime(2026, 9, 14, 15, 30, tzinfo=timezone.utc)
 
-        # Extract available vessel types dynamically from actual track records
-        all_v_types = set()
-        if isinstance(tracks_data, dict):
-            for m_k, r_list in tracks_data.items():
-                if r_list and isinstance(r_list[0], dict) and r_list[0].get("vessel_type"):
-                    all_v_types.add(r_list[0].get("vessel_type"))
-        elif isinstance(tracks_data, list):
-            for t in tracks_data:
-                pts = t.get("points", [])
-                if pts and isinstance(pts[0], dict) and pts[0].get("vessel_type"):
-                    all_v_types.add(pts[0].get("vessel_type"))
-        v_type_options = ["All Vessel Types"] + sorted(list(all_v_types))
+        # Filters: Search & Type
+        fcol1, fcol2 = st.columns([6, 6])
+        with fcol1:
+            ais_search = st.text_input("Search Vessel", placeholder="Search by vessel name or MMSI...", key="ais_search_box", label_visibility="collapsed")
+        with fcol2:
+            all_v_types = set()
+            for c in candidates:
+                if c.get("vessel_type"):
+                    all_v_types.add(c["vessel_type"])
+            v_type_sel = st.selectbox("Filter Type", ["All Types"] + sorted(list(all_v_types)), key="ais_type_box", label_visibility="collapsed")
 
-        # Helper: Extract interpolated vessel telemetry at current scrubber time
-        def get_vessel_telemetry_at_time(mmsi_val, target_time):
-            recs = []
-            if isinstance(tracks_data, dict) and mmsi_val in tracks_data:
-                recs = tracks_data[mmsi_val]
-            elif isinstance(tracks_data, list):
-                for t in tracks_data:
-                    if str(t.get("mmsi")) == str(mmsi_val):
-                        recs = t.get("points", [])
-                        break
-            if not recs or not isinstance(recs[0], dict):
-                return {
-                    "lat": spill_lat, "lon": spill_lon, "speed_knots": 0.0, "course": 0.0,
-                    "timestamp": "N/A", "vessel_type": "Commercial Vessel", "nav_status": "Underway"
-                }
-            best_r = recs[0]
-            min_dt = float("inf")
-            for r in recs:
-                if isinstance(r, dict) and "timestamp" in r:
-                    try:
-                        r_t = datetime.fromisoformat(r["timestamp"])
-                        dt = abs((r_t - target_time).total_seconds())
-                        if dt < min_dt:
-                            min_dt = dt
-                            best_r = r
-                    except Exception:
-                        pass
-            return {
-                "lat": float(best_r.get("lat", spill_lat)),
-                "lon": float(best_r.get("lon", spill_lon)),
-                "speed_knots": float(best_r.get("speed_knots", 0.0)),
-                "course": float(best_r.get("heading", best_r.get("course_over_ground", 0.0))),
-                "timestamp": str(best_r.get("timestamp", "")),
-                "vessel_type": str(best_r.get("vessel_type", "Commercial")),
-                "nav_status": str(best_r.get("navigation_status", "Underway")),
-            }
-
-        # ── Control & Filter Bar (Only supported filters) ──
-        st.markdown("""
-        <div class="glass-panel" style="padding:10px 14px; margin-bottom:12px;">
-            <div style="font-size:10px; font-weight:700; color:#38bdf8; font-family:'JetBrains Mono'; letter-spacing:0.8px; margin-bottom:6px;">
-                🛰️ AIS INTELLIGENCE FILTER & TEMPORAL CORRIDOR CONTROLS
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        fc1, fc2, fc3, fc4 = st.columns([3, 2, 2, 3])
-        with fc1:
-            st.caption("🔍 SEARCH CANDIDATE (NAME / MMSI)")
-            search_kw = st.text_input("Search Vessel", placeholder="e.g. Falcon or 419000", key="ais_search_filter_input", label_visibility="collapsed")
-        with fc2:
-            st.caption("🚢 VESSEL TYPE")
-            sel_type = st.selectbox("Vessel Type", v_type_options, key="ais_type_filter_input", label_visibility="collapsed")
-        with fc3:
-            st.caption("⚖️ ASSOCIATION TIER")
-            sel_tier = st.selectbox("Association Tier", ["All Association Tiers", "High Association (≥70%)", "Moderate Association (≥40%)", "Low Association (<40%)"], key="ais_tier_filter_input", label_visibility="collapsed")
-        with fc4:
-            st.caption("⏱️ TIME RANGE / SCRUBBER")
-            time_scrub = st.slider("Time Range", min_value=-180, max_value=60, value=st.session_state.get("timeline_min", 0), step=15, format="%+d min", key="ais_timeline_scrub_input", label_visibility="collapsed")
-            st.session_state["timeline_min"] = time_scrub
-
-        current_scrub_time = base_time + timedelta(minutes=time_scrub)
-
-        # Apply Filters
+        # Filter candidates
         filtered_candidates = []
-        for cand in candidates:
-            mmsi = str(cand.get("mmsi", ""))
-            name = str(cand.get("name", "Unknown"))
-            score = float(cand.get("score", 0.0))
-
-            v_telemetry = get_vessel_telemetry_at_time(mmsi, current_scrub_time)
-            v_type = v_telemetry.get("vessel_type", "Commercial")
-
-            # Search filter
-            if search_kw.strip():
-                kw = search_kw.strip().lower()
-                if kw not in name.lower() and kw not in mmsi.lower():
+        for c in candidates:
+            c_name = str(c.get("name", "")).lower()
+            c_mmsi = str(c.get("mmsi", ""))
+            if ais_search:
+                s_term = ais_search.strip().lower()
+                if s_term not in c_name and s_term not in c_mmsi:
                     continue
-
-            # Vessel type filter
-            if sel_type != "All Vessel Types" and v_type.lower() != sel_type.lower():
+            if v_type_sel != "All Types" and c.get("vessel_type") != v_type_sel:
                 continue
+            filtered_candidates.append(c)
 
-            # Association score tier filter
-            if sel_tier == "High Association (≥70%)" and score < 70:
-                continue
-            elif sel_tier == "Moderate Association (≥40%)" and (score < 40 or score >= 70):
-                continue
-            elif sel_tier == "Low Association (<40%)" and score >= 40:
-                continue
+        col_ais_map, col_ais_list = st.columns([13, 8])
 
-            filtered_candidates.append(cand)
-
-        col_ais_map, col_ais_panel = st.columns([13, 11])
-
-        # ── LEFT COLUMN: MAIN VIEW (MAP + AIS TRACKS) ──
         with col_ais_map:
-            st.markdown("##### 🗺️ Main View: Interactive Map & AIS Trajectory Corridor")
-
-            # Direct Target Selector / Camera Flight dropdown
-            map_c_opts = ["Full Fleet Overview (All Tracks)"] + [f"{c['name']} (MMSI: {c['mmsi']} | {c.get('score', 0):.0f}%)" for c in filtered_candidates]
-            sel_idx = 0
-            if st.session_state.get("selected_vessel_mmsi"):
-                for idx, c in enumerate(filtered_candidates):
-                    if str(c["mmsi"]) == str(st.session_state.get("selected_vessel_mmsi")):
-                        sel_idx = idx + 1
-                        break
-
-            m_pick = st.selectbox("Direct Target Acquisition", map_c_opts, index=sel_idx, key="ais_tab_quick_selector", label_visibility="collapsed")
-            if m_pick != "Full Fleet Overview (All Tracks)":
-                m_match = next((c for c in filtered_candidates if f"{c['name']} (MMSI: {c['mmsi']} | {c.get('score', 0):.0f}%)" == m_pick), None)
-                if m_match and str(st.session_state.get("selected_vessel_mmsi")) != str(m_match["mmsi"]):
-                    st.session_state["selected_vessel_mmsi"] = m_match["mmsi"]
-                    st.session_state["focus_target"] = "vessel"
-                    st.rerun()
-            elif m_pick == "Full Fleet Overview (All Tracks)" and st.session_state.get("selected_vessel_mmsi") is not None:
-                st.session_state["selected_vessel_mmsi"] = None
-                st.session_state["focus_target"] = None
-                st.rerun()
-
-            active_mmsi_label = f"TARGET: {st.session_state.get('selected_vessel_mmsi')}" if st.session_state.get("selected_vessel_mmsi") else "FLEET SURVEY"
-            st.markdown(f"""
+            active_mmsi_label = f"TARGET: {st.session_state.get('selected_vessel_mmsi')}" if st.session_state.get("selected_vessel_mmsi") else "FLEET OVERVIEW"
+            render_html(f"""
             <div class="map-tactical-header">
-                <div><span class="status-pulse-sm"></span><span class="map-tactical-title">AIS COMMERCIAL FLEET TRACKING CORRIDOR // EPSG:4326</span></div>
-                <div>MATCHING CANDIDATES: {len(filtered_candidates)} OF {len(candidates)} • FEED: {ais_mode} • {active_mmsi_label}</div>
+                <div><span class="status-pulse-sm"></span><span class="map-tactical-title">AIS FLEET CORRIDOR</span></div>
+                <div>{len(filtered_candidates)} MATCHING VESSELS · FEED: {ais_mode} · {active_mmsi_label}</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
 
             fmap_ais = build_investigation_map(
                 final_state,
-                slider_minutes=time_scrub,
+                slider_minutes=st.session_state.get("timeline_min", 0),
                 selected_vessel_mmsi=st.session_state.get("selected_vessel_mmsi"),
                 mode="AIS",
             )
-            st_folium(fmap_ais, height=600, use_container_width=True, key="ais_workspace_folium_map", returned_objects=[])
+            st_folium(fmap_ais, height=620, use_container_width=True, key="ais_workspace_folium_map", returned_objects=[])
 
-            # Map tactical indicators & telemetry strip
-            st.markdown(f"""
-            <div class="glass-panel" style="padding:10px 14px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-family:'JetBrains Mono';">
-                <div><span style="color:#00e5ff; font-weight:700;">● PRIMARY TARGET:</span> Pulsing Halo + AntPath Trajectory</div>
-                <div><span style="color:#64748b; font-weight:700;">○ UNRELATED FLEET:</span> Dimmed (14% Opacity)</div>
-                <div><span style="color:#ef4444; font-weight:700;">■ SPILL SLICK:</span> SAR Detection Centroid</div>
-                <div><span style="color:#10b981; font-weight:700;">⇢ SOURCE VECTOR:</span> Backtrack Proximity</div>
-            </div>
-            """, unsafe_allow_html=True)
+        with col_ais_list:
+            st.markdown(f"##### 📋 Candidate Vessels ({len(filtered_candidates)})")
 
-        # ── RIGHT COLUMN: SECONDARY VIEW (CANDIDATE VESSEL PANEL) ──
-        with col_ais_panel:
-            st.markdown("##### 📋 Secondary View: Candidate Vessel Panel & Evidence Dossier")
-            st.caption(f"Showing {len(filtered_candidates)} matching candidate vessels ranked by multi-factor association evidence.")
+            for i, cand in enumerate(filtered_candidates[:8]):
+                c_mmsi = str(cand.get("mmsi", ""))
+                score = cand.get("score", 0.0)
+                score_css = "vessel-score-high" if score >= 70 else ("vessel-score-med" if score >= 40 else "vessel-score-low")
+                bar_color = "#ef4444" if score >= 70 else ("#f59e0b" if score >= 40 else "#64748b")
+                bdown = cand.get("breakdown", {})
+                is_selected = (str(st.session_state.get("selected_vessel_mmsi")) == c_mmsi)
 
-            if not filtered_candidates:
-                st.warning("No candidate vessels match the current search or filter criteria.")
-                if st.button("Reset All Filters", key="ais_reset_filters_btn", type="secondary", use_container_width=True):
-                    st.session_state["ais_search_filter_input"] = ""
-                    st.session_state["ais_type_filter_input"] = "All Vessel Types"
-                    st.session_state["ais_tier_filter_input"] = "All Association Tiers"
-                    st.rerun()
-            else:
-                # If a specific vessel is currently selected, display its comprehensive Evidence Dossier first
-                selected_cand = None
-                if st.session_state.get("selected_vessel_mmsi"):
-                    selected_cand = next((c for c in filtered_candidates if str(c.get("mmsi")) == str(st.session_state.get("selected_vessel_mmsi"))), None)
-                    if not selected_cand:
-                        selected_cand = next((c for c in candidates if str(c.get("mmsi")) == str(st.session_state.get("selected_vessel_mmsi"))), None)
-
-                if selected_cand:
-                    s_mmsi = str(selected_cand.get("mmsi", ""))
-                    s_name = selected_cand.get("name", "Unknown Vessel")
-                    s_score = selected_cand.get("score", 0.0)
-                    s_bdown = selected_cand.get("breakdown", {})
-                    s_telemetry = get_vessel_telemetry_at_time(s_mmsi, current_scrub_time)
-                    s_lat, s_lon = s_telemetry["lat"], s_telemetry["lon"]
-                    s_speed = s_telemetry["speed_knots"]
-                    s_course = s_telemetry["course"]
-                    s_type = s_telemetry["vessel_type"]
-                    s_ts_str = s_telemetry["timestamp"]
-                    s_dist_spill = haversine_km(s_lat, s_lon, spill_lat, spill_lon)
-                    s_dist_source = selected_cand.get("min_distance_km", haversine_km(s_lat, s_lon, source_lat, source_lon))
-                    s_time_match = selected_cand.get("time_match", False)
-
-                    score_css = "vessel-score-high" if s_score >= 70 else ("vessel-score-med" if s_score >= 40 else "vessel-score-low")
-                    bar_color = "#f87171" if s_score >= 70 else ("#fbbf24" if s_score >= 40 else "#64748b")
-
-                    st.markdown(f"""
-                    <div class="vessel-card vessel-card-active glass-panel">
-                        <div class="vessel-header">
-                            <div>
-                                <span class="telemetry-micro-label">🎯 TARGET ACQUIRED // PRIMARY CANDIDATE VESSEL</span>
-                                <div class="vessel-name" style="font-size:17px; margin-top:2px;">🚢 {s_name}</div>
-                                <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
-                                    <span class="vessel-mmsi">MMSI: {s_mmsi}</span>
-                                    <span class="vessel-type-tag">{s_type.upper()}</span>
-                                </div>
-                            </div>
-                            <div style="text-align:right;">
-                                <span class="telemetry-micro-label">ASSOCIATION SCORE</span>
-                                <div class="vessel-score {score_css}">{s_score:.0f}<span style="font-size:12px; color:#64748b;">/100</span></div>
-                            </div>
+                render_html(f"""
+                <div class="vessel-card glass-panel" style="{'border:2px solid #00e5ff;' if is_selected else ''}">
+                    <div class="vessel-header">
+                        <div>
+                            <div class="vessel-name">🚢 {cand.get('name', 'UNKNOWN')}</div>
+                            <div class="vessel-mmsi">MMSI: {c_mmsi} · {cand.get('vessel_type', 'Commercial')}</div>
                         </div>
-                        <div class="bar-bg" style="height:7px;">
-                            <div class="bar-fill" style="width:{s_score}%; background:{bar_color};"></div>
-                        </div>
-
-                        <div style="margin-top:14px; font-size:10px; font-weight:700; color:#38bdf8; font-family:'JetBrains Mono'; letter-spacing:0.8px;">
-                            TELEMETRY SNAPSHOT (T{time_scrub:+d} MIN RELATIVE TO SLICK ACQUISITION)
-                        </div>
-
-                        <div class="telemetry-grid-4" style="margin-top:8px;">
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">POSITION</span>
-                                <strong class="telemetry-value-sm" style="font-size:11px;">{s_lat:.4f}°N, {s_lon:.4f}°E</strong>
-                            </div>
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">TIMESTAMP</span>
-                                <strong class="telemetry-value-sm" style="font-size:11px;">{s_ts_str[11:19] if len(s_ts_str) >= 19 else s_ts_str} UTC</strong>
-                            </div>
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">SPEED</span>
-                                <strong class="telemetry-value-sm">{s_speed:.1f} KN</strong>
-                            </div>
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">COURSE</span>
-                                <strong class="telemetry-value-sm">{s_course:.0f}° TRUE</strong>
-                            </div>
-                        </div>
-
-                        <div class="telemetry-grid-4" style="margin-top:8px;">
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">DISTANCE FROM SPILL</span>
-                                <strong class="telemetry-value-sm">{s_dist_spill:.1f} KM</strong>
-                            </div>
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">SOURCE PROXIMITY</span>
-                                <strong class="telemetry-value-sm">{s_dist_source:.1f} KM</strong>
-                            </div>
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">TEMPORAL RELATION</span>
-                                <strong class="telemetry-value-sm" style="color:{'#34d399' if s_time_match else '#f87171'};">
-                                    {'COINCIDENT' if s_time_match else 'DISCORDANT'}
-                                </strong>
-                            </div>
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">TRAJECTORY CONSISTENCY</span>
-                                <strong class="telemetry-value-sm">{s_bdown.get('trajectory', 0.0):.0f}%</strong>
-                            </div>
-                        </div>
-
-                        <div style="margin-top:16px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px;">
-                            <span class="telemetry-micro-label">ASSOCIATION EVIDENCE BREAKDOWN</span>
-                            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:6px;">
-                                <div style="background:rgba(14,22,42,0.6); padding:6px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:'JetBrains Mono'; font-size:10px;">
-                                    <span style="color:#94a3b8;">SPATIAL:</span> <strong style="color:#f8fafc;">{s_bdown.get('spatial', 0.0):.0f}%</strong>
-                                </div>
-                                <div style="background:rgba(14,22,42,0.6); padding:6px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:'JetBrains Mono'; font-size:10px;">
-                                    <span style="color:#94a3b8;">TEMPORAL:</span> <strong style="color:#f8fafc;">{s_bdown.get('temporal', 0.0):.0f}%</strong>
-                                </div>
-                                <div style="background:rgba(14,22,42,0.6); padding:6px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:'JetBrains Mono'; font-size:10px;">
-                                    <span style="color:#94a3b8;">TRAJECTORY:</span> <strong style="color:#f8fafc;">{s_bdown.get('trajectory', 0.0):.0f}%</strong>
-                                </div>
-                                <div style="background:rgba(14,22,42,0.6); padding:6px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:'JetBrains Mono'; font-size:10px;">
-                                    <span style="color:#94a3b8;">HEADING:</span> <strong style="color:#f8fafc;">{s_bdown.get('heading', 0.0):.0f}%</strong>
-                                </div>
-                                <div style="background:rgba(14,22,42,0.6); padding:6px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:'JetBrains Mono'; font-size:10px;">
-                                    <span style="color:#94a3b8;">SPEED:</span> <strong style="color:#f8fafc;">{s_bdown.get('speed', 0.0):.0f}%</strong>
-                                </div>
-                                <div style="background:rgba(14,22,42,0.6); padding:6px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:'JetBrains Mono'; font-size:10px;">
-                                    <span style="color:#94a3b8;">DRIFT:</span> <strong style="color:#f8fafc;">{s_bdown.get('drift_consistency', 0.0):.0f}%</strong>
-                                </div>
-                            </div>
+                        <div style="text-align:right;">
+                            <span class="telemetry-label">SCORE</span>
+                            <div class="vessel-score {score_css}">{score:.0f}<span style="font-size:12px; color:#64748b;">/100</span></div>
                         </div>
                     </div>
-                    """, unsafe_allow_html=True)
-
-                    # Evidence Bullets & Uncertainty Notes
-                    s_ev_list = selected_cand.get("evidence_summary", [])
-                    s_unc_list = selected_cand.get("uncertainty_notes", [])
-                    if s_ev_list or s_unc_list:
-                        with st.expander("🔎 Detailed Spatiotemporal Evidence & Uncertainty Audit", expanded=True):
-                            if s_ev_list:
-                                st.markdown("<strong style='font-size:11px; color:#38bdf8; font-family:var(--font-mono);'>CORROBORATING EVIDENCE POINTS:</strong>", unsafe_allow_html=True)
-                                for ev in s_ev_list:
-                                    st.markdown(f"<div class='evidence-bullet'><span>✓</span> <span>{ev}</span></div>", unsafe_allow_html=True)
-                            if s_unc_list:
-                                st.markdown("<strong style='font-size:11px; color:#fbbf24; font-family:var(--font-mono); margin-top:8px; display:block;'>UNCERTAINTY & SENSOR BOUNDS:</strong>", unsafe_allow_html=True)
-                                for unc in s_unc_list:
-                                    st.markdown(f"<div class='uncertainty-bullet'><span>⚠️</span> <span>{unc}</span></div>", unsafe_allow_html=True)
-
-                    if st.button("✕ Deselect Target (View Full Fleet)", key="ais_deselect_target_btn", use_container_width=True, type="secondary"):
-                        st.session_state["selected_vessel_mmsi"] = None
-                        st.session_state["focus_target"] = None
-                        st.rerun()
-
-                    st.markdown("<hr style='border:0; border-top:1px solid rgba(255,255,255,0.08); margin:16px 0 12px 0;'>", unsafe_allow_html=True)
-                    st.markdown("##### 👥 Other Candidate Vessels in Corridor")
-
-                # List remaining candidates
-                for i, cand in enumerate(filtered_candidates):
-                    c_mmsi = str(cand.get("mmsi", ""))
-                    if selected_cand and c_mmsi == str(selected_cand.get("mmsi")):
-                        continue  # Already shown above
-
-                    score = cand.get("score", 0.0)
-                    score_css = "vessel-score-high" if score >= 70 else ("vessel-score-med" if score >= 40 else "vessel-score-low")
-                    bar_color = "#f87171" if score >= 70 else ("#fbbf24" if score >= 40 else "#64748b")
-                    bdown = cand.get("breakdown", {})
-                    c_telemetry = get_vessel_telemetry_at_time(c_mmsi, current_scrub_time)
-                    c_lat, c_lon = c_telemetry["lat"], c_telemetry["lon"]
-                    c_speed = c_telemetry["speed_knots"]
-                    c_course = c_telemetry["course"]
-                    c_type = c_telemetry["vessel_type"]
-                    c_dist_spill = haversine_km(c_lat, c_lon, spill_lat, spill_lon)
-                    c_dist_source = cand.get("min_distance_km", haversine_km(c_lat, c_lon, source_lat, source_lon))
-
-                    dim_class = "vessel-dimmed" if (st.session_state.get("selected_vessel_mmsi") and str(st.session_state.get("selected_vessel_mmsi")) != c_mmsi) else ""
-
-                    st.markdown(f"""
-                    <div class="vessel-card glass-panel {dim_class}">
-                        <div class="vessel-header">
-                            <div>
-                                <span class="telemetry-micro-label">CANDIDATE #{i+1}</span>
-                                <div class="vessel-name">🚢 {cand.get('name', 'UNKNOWN')}</div>
-                                <div style="display:flex; gap:6px; align-items:center; margin-top:2px;">
-                                    <span class="vessel-mmsi">MMSI: {c_mmsi}</span>
-                                    <span class="vessel-type-tag">{c_type.upper()}</span>
-                                </div>
-                            </div>
-                            <div style="text-align:right;">
-                                <span class="telemetry-micro-label">ASSOCIATION</span>
-                                <div class="vessel-score {score_css}">{score:.0f}<span style="font-size:12px; color:#64748b;">/100</span></div>
-                            </div>
+                    <div class="bar-bg">
+                        <div class="bar-fill" style="width:{score}%; background:{bar_color};"></div>
+                    </div>
+                    <div class="telemetry-grid-4">
+                        <div class="telemetry-metric-unit">
+                            <span class="telemetry-label">PROXIMITY</span>
+                            <strong class="telemetry-value-sm">{cand.get('min_distance_km', 0.0):.1f} km</strong>
                         </div>
-                        <div class="bar-bg">
-                            <div class="bar-fill" style="width:{score}%; background:{bar_color};"></div>
+                        <div class="telemetry-metric-unit">
+                            <span class="telemetry-label">TRAJECTORY</span>
+                            <strong class="telemetry-value-sm">{bdown.get('trajectory', 0.0):.0f}%</strong>
                         </div>
-                        <div class="telemetry-grid-4">
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">POSITION</span>
-                                <strong class="telemetry-value-sm" style="font-size:10.5px;">{c_lat:.3f}°N, {c_lon:.3f}°E</strong>
-                            </div>
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">SPEED & COURSE</span>
-                                <strong class="telemetry-value-sm">{c_speed:.1f} KN • {c_course:.0f}°</strong>
-                            </div>
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">SOURCE PROXIMITY</span>
-                                <strong class="telemetry-value-sm">{c_dist_source:.1f} KM</strong>
-                            </div>
-                            <div class="telemetry-metric-unit">
-                                <span class="telemetry-label">TRAJECTORY</span>
-                                <strong class="telemetry-value-sm">{bdown.get('trajectory', 0.0):.0f}%</strong>
-                            </div>
+                        <div class="telemetry-metric-unit">
+                            <span class="telemetry-label">TIME</span>
+                            <strong class="telemetry-value-sm" style="color:{'#34d399' if cand.get('time_match') else '#f87171'};">
+                                {'MATCH' if cand.get('time_match') else 'OUTSIDE'}
+                            </strong>
+                        </div>
+                        <div class="telemetry-metric-unit">
+                            <span class="telemetry-label">LOITER</span>
+                            <strong class="telemetry-value-sm">{bdown.get('speed_anomaly', 0.0):.0f}%</strong>
                         </div>
                     </div>
-                    """, unsafe_allow_html=True)
+                </div>
+                """)
 
-                    btn_lbl = f"🎯 Inspect & Fly Map to {cand.get('name', c_mmsi)}"
-                    if st.button(btn_lbl, key=f"foc_btn_ais_cand_{c_mmsi}", use_container_width=True, type="primary" if score >= 70 else "secondary"):
+                c_btn_col1, c_btn_col2 = st.columns([1, 1])
+                with c_btn_col1:
+                    if st.button(f"🎯 Select {c_mmsi}", key=f"btn_sel_vessel_{c_mmsi}", use_container_width=True, type="primary" if is_selected else "secondary"):
                         st.session_state["selected_vessel_mmsi"] = cand["mmsi"]
-                        st.session_state["focus_target"] = "vessel"
+                        st.session_state["map_focus"] = "vessel"
                         st.rerun()
+                with c_btn_col2:
+                    if is_selected and st.button("✕ Deselect", key=f"btn_desel_vessel_{c_mmsi}", use_container_width=True):
+                        st.session_state["selected_vessel_mmsi"] = None
+                        st.session_state["map_focus"] = None
+                        st.rerun()
+
     else:
         st.info("Execute pipeline to generate candidate vessel association rankings.")
         if st.button("Run Pipeline Now", key="ais_tab_empty_run_btn", type="primary", use_container_width=True):
             st.session_state["trigger_pipeline_run"] = True
             st.rerun()
 
-
 # =========================================================================
 # SECTION 5: DRIFT INTELLIGENCE WORKSPACE
 # =========================================================================
 def render_drift_tab(final_state, is_demo):
-    st.markdown("#### ⏱️ Drift Intelligence & Hydrodynamic Advection")
-    st.caption("Euler advection hindcast, forward drift trajectory projection, and dynamic spatial dispersion envelopes.")
-
     if "drift_h" not in st.session_state:
         st.session_state["drift_h"] = 0.0
     if "drift_play" not in st.session_state:
@@ -5106,7 +3266,7 @@ def render_drift_tab(final_state, is_demo):
         w_bearing = hindcast.get("wind_bearing_deg", 135.0)
         w_factor = hindcast.get("wind_factor", 0.03)
 
-        # Net drift vector formulation
+        # Net drift vector calculation
         cx = c_speed * math.sin(math.radians(c_bearing))
         cy = c_speed * math.cos(math.radians(c_bearing))
         wx = w_factor * w_speed * math.sin(math.radians(w_bearing))
@@ -5121,93 +3281,6 @@ def render_drift_tab(final_state, is_demo):
         spill_lat = final_state.get("spill_lat", DEMO_SPILL_LAT)
         spill_lon = final_state.get("spill_lon", DEMO_SPILL_LON)
 
-        # ── 1. Oceanographic Model & Scientific Restraint Disclosure ──
-        st.markdown(f"""
-        <div class="glass-panel" style="padding:14px 18px; margin-bottom:14px; border-left:4px solid #38bdf8;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="telemetry-label" style="color:#38bdf8 !important;">OCEANOGRAPHIC DRIFT MODEL & SENSOR DISCLOSURE</span>
-                <div style="display:flex; gap:6px;">
-                    <span class="data-tag tag-simulated">SIMULATED REGIONAL VECTOR</span>
-                    <span class="data-tag tag-official">EULER NUMERICAL SCHEME</span>
-                </div>
-            </div>
-            <div style="font-size:12px; color:#cbd5e1; margin-top:6px; line-height:1.5;">
-                <strong>Deterministic Advection Model:</strong> Integrates constant regional surface current (<code style="color:#00e5ff;">{c_speed:.2f} m/s @ {c_bearing:.0f}° True</code>) with 3.0% empirical wind leeway (<code style="color:#38bdf8;">{w_speed:.1f} m/s @ {w_bearing:.0f}° True</code>) via discrete Euler numerical advection. Net advection vector: <code style="color:#34d399;">{net_drift_speed:.2f} m/s ({net_speed_knots:.2f} kn) @ {net_drift_bearing:.0f}° True</code>.
-                <br><span style="color:#fbbf24;">⚠️ <strong>Scientific Disclosure:</strong></span> Offline operational demonstration evaluates deterministic transport across a simulated constant velocity vector field. Real-time 3D baroclinic oceanographic assimilation (Copernicus Marine Service / HYCOM) is inactive. Uncertainty envelopes expand linearly with advection duration (dispersion growth rate 0.35 km/km advected).
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── 2. Playback & Timeline Scrubber Suite ──
-        st.markdown("""
-        <div class="glass-panel" style="padding:10px 14px; margin-bottom:10px;">
-            <div style="font-size:10px; font-weight:700; color:#38bdf8; font-family:'JetBrains Mono'; letter-spacing:0.8px;">
-                ⏱️ TIMELINE MILESTONE ACQUISITION & CONTINUOUS FORENSIC SCRUBBER
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Row A: Play / Step controls
-        ctl_c1, ctl_c2, ctl_c3, ctl_c4 = st.columns([3, 2, 2, 2])
-        with ctl_c1:
-            is_playing = st.session_state.get("drift_play", False)
-            if is_playing:
-                if st.button("⏸ PAUSE SIMULATION", key="btn_drift_pause", use_container_width=True, type="primary"):
-                    st.session_state["drift_play"] = False
-                    st.rerun()
-            else:
-                if st.button("▶ PLAY SIMULATION", key="btn_drift_play", use_container_width=True, type="secondary"):
-                    st.session_state["drift_play"] = True
-                    st.rerun()
-        with ctl_c2:
-            if st.button("◀ -1.0h", key="btn_drift_step_back", use_container_width=True):
-                st.session_state["drift_h"] = max(-12.0, round(st.session_state["drift_h"] - 1.0, 1))
-                st.session_state["drift_play"] = False
-                st.rerun()
-        with ctl_c3:
-            if st.button("▶ +1.0h", key="btn_drift_step_fwd", use_container_width=True):
-                st.session_state["drift_h"] = min(24.0, round(st.session_state["drift_h"] + 1.0, 1))
-                st.session_state["drift_play"] = False
-                st.rerun()
-        with ctl_c4:
-            if st.button("🎯 NOW (T=0)", key="btn_drift_reset_now", use_container_width=True):
-                st.session_state["drift_h"] = 0.0
-                st.session_state["drift_play"] = False
-                st.rerun()
-
-        # Row B: 6 Discrete Milestone Buttons
-        m_col1, m_col2, m_col3, m_col4, m_col5, m_col6 = st.columns(6)
-        milestones = [
-            (-12.0, "⏪ T-12h", m_col1),
-            (-6.0,  "◀ T-6h",   m_col2),
-            (0.0,   "🎯 NOW",   m_col3),
-            (6.0,   "▶ T+6h",   m_col4),
-            (12.0,  "⏩ T+12h", m_col5),
-            (24.0,  "⏭ T+24h", m_col6),
-        ]
-        for m_val, m_label, col in milestones:
-            with col:
-                is_active_milestone = abs(st.session_state["drift_h"] - m_val) < 0.25
-                if st.button(m_label, key=f"btn_ms_{m_val}", use_container_width=True, type="primary" if is_active_milestone else "secondary"):
-                    st.session_state["drift_h"] = m_val
-                    st.session_state["drift_play"] = False
-                    st.rerun()
-
-        # Row C: Continuous Timeline Slider
-        scrub_val = st.slider(
-            "Forensic Advection Horizon",
-            min_value=-12.0,
-            max_value=24.0,
-            value=float(st.session_state["drift_h"]),
-            step=0.5,
-            format="%+.1f hrs",
-            key="drift_slider_input",
-            label_visibility="collapsed",
-        )
-        if scrub_val != st.session_state["drift_h"]:
-            st.session_state["drift_h"] = scrub_val
-
-        # Temporal and spatial calculations for active hour
         cur_h = float(st.session_state["drift_h"])
         ts_str = final_state.get("detection_timestamp", "2026-09-14T15:30:00+00:00")
         try:
@@ -5221,103 +3294,106 @@ def render_drift_tab(final_state, is_demo):
             active_lat, active_lon = spill_lat, spill_lon
             active_dist = 0.0
             active_unc = 0.8
-            phase_label = "OBSERVED SLICK // SAR PASS (NOW)"
-            phase_tag = "OBSERVED"
+            phase_label = "NOW (Detection Epoch)"
         elif cur_h < 0:
             active_dist = net_drift_speed * (abs(cur_h) * 3600) / 1000.0
             active_lat, active_lon = destination_point(spill_lat, spill_lon, reverse_bearing, active_dist)
             active_unc = 0.8 + active_dist * 0.35
-            phase_label = f"HISTORICAL HINDCAST // T{cur_h:+0.1f}h PRIOR TO DETECTION"
-            phase_tag = "HINDCAST"
+            phase_label = f"Hindcast Origin (T{cur_h:+.1f}h)"
         else:
             active_dist = net_drift_speed * (cur_h * 3600) / 1000.0
             active_lat, active_lon = destination_point(spill_lat, spill_lon, net_drift_bearing, active_dist)
             active_unc = 0.8 + active_dist * 0.35
-            phase_label = f"FORWARD DRIFT FORECAST // T{cur_h:+0.1f}h PROJECTION"
-            phase_tag = "PREDICTED"
+            phase_label = f"Forward Trajectory (T{cur_h:+.1f}h)"
 
-        # Nearest sensitive shoreline asset
-        nearest_shore_dist = float("inf")
-        nearest_shore_name = "Coastline"
-        for sa in (CHENNAI_SCENARIO.sensitive_areas or []):
-            d = haversine_km(active_lat, active_lon, sa["lat"], sa["lon"])
-            if d < nearest_shore_dist:
-                nearest_shore_dist = d
-                nearest_shore_name = sa["name"]
-
-        # ── 3. Map Tactical Status Header ──
-        st.markdown(f"""
-        <div class="map-tactical-header">
+        # ── 1. Clean Title & Status Line (Section 12) ──
+        render_html(f"""
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
             <div>
-                <span class="status-pulse-sm"></span>
-                <span class="map-tactical-title">DRIFT INTELLIGENCE // PRIMARY CANVAS [{phase_label}]</span>
+                <h3 style="margin:0 !important; font-size:22px; color:#f8fafc;">Drift Trajectory & Hindcast</h3>
+                <div style="font-family:var(--font-mono); font-size:13px; color:#94a3b8; margin-top:3px;">
+                    {phase_label} &nbsp;·&nbsp; Epoch: {sim_time_str} &nbsp;·&nbsp; Position: {active_lat:.4f}°N, {active_lon:.4f}°E
+                </div>
             </div>
             <div>
-                SIMULATION EPOCH: {sim_time_str} • DELTA: {cur_h:+0.1f}h • POS: {active_lat:.3f}°N, {active_lon:.3f}°E • SPREAD: ±{active_unc:.1f} KM
+                {render_tag('SIMULATED')}
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
-        # ── 4. Primary Map Canvas (Rock-Solid Stable Camera at Corridor Center) ──
+        # ── 2. Primary Drift Map Canvas ──
         fmap_drift = build_investigation_map(
             final_state,
             mode="DRIFT",
             drift_hours=cur_h,
         )
-        st_folium(fmap_drift, height=580, use_container_width=True, key="drift_intelligence_folium_map", returned_objects=[])
+        st_folium(fmap_drift, height=600, use_container_width=True, key="drift_intelligence_folium_map", returned_objects=[])
 
-        # ── 5. Live Dynamic Telemetry Grid (Smooth Real-Time Updates) ──
-        tm1, tm2, tm3, tm4, tm5, tm6 = st.columns(6)
-        with tm1:
-            st.markdown(f"""
-            <div class="metric-card glass-panel">
-                <div class="telemetry-label">SIMULATION EPOCH</div>
-                <div class="metric-value" style="font-size:16px;">{sim_time_str[-9:]}</div>
-                <div class="metric-sub">{sim_time_str[:10]} // T{cur_h:+0.1f}H</div>
-            </div>
-            """, unsafe_allow_html=True)
-        with tm2:
-            st.markdown(f"""
-            <div class="metric-card glass-panel">
-                <div class="telemetry-label">ACTIVE SLICK COORDS</div>
-                <div class="metric-value" style="font-size:16px;">{active_lat:.4f}°N</div>
-                <div class="metric-sub">{active_lon:.4f}°E // EPSG:4326</div>
-            </div>
-            """, unsafe_allow_html=True)
-        with tm3:
-            st.markdown(f"""
-            <div class="metric-card glass-panel">
-                <div class="telemetry-label">NET ADVECTION DISTANCE</div>
-                <div class="metric-value">{active_dist:.1f} KM</div>
-                <div class="metric-sub">{active_dist * 0.539957:.1f} NM FROM DETECTION</div>
-            </div>
-            """, unsafe_allow_html=True)
-        with tm4:
-            st.markdown(f"""
-            <div class="metric-card glass-panel">
-                <div class="telemetry-label">DISPERSION ENVELOPE</div>
-                <div class="metric-value">±{active_unc:.1f} KM</div>
-                <div class="metric-sub">AREA: ~{math.pi * active_unc**2:.1f} KM²</div>
-            </div>
-            """, unsafe_allow_html=True)
-        with tm5:
-            st.markdown(f"""
-            <div class="metric-card glass-panel">
-                <div class="telemetry-label">NET ADVECTION VECTOR</div>
-                <div class="metric-value">{net_drift_speed:.2f} M/S</div>
-                <div class="metric-sub">{net_speed_knots:.2f} KN @ {net_drift_bearing:.0f}° TRUE</div>
-            </div>
-            """, unsafe_allow_html=True)
-        with tm6:
-            st.markdown(f"""
-            <div class="metric-card glass-panel">
-                <div class="telemetry-label">SHORELINE PROXIMITY</div>
-                <div class="metric-value">{nearest_shore_dist:.1f} KM</div>
-                <div class="metric-sub">NEAREST: {nearest_shore_name.upper()}</div>
-            </div>
-            """, unsafe_allow_html=True)
+        # ── 3. Single Streamlined Timeline & Controls (Section 12, 13) ──
+        render_html("<hr style='border-color:rgba(255,255,255,0.08); margin:16px 0 12px 0;'>")
 
-        # ── 6. Deterministic Animation Playback Loop ──
+        col_ctl_play, col_ctl_step, col_ctl_m1, col_ctl_m2, col_ctl_m3, col_ctl_m4, col_ctl_m5, col_ctl_m6 = st.columns([2.5, 2, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5])
+
+        with col_ctl_play:
+            is_playing = st.session_state.get("drift_play", False)
+            if is_playing:
+                if st.button("⏸ Pause", key="btn_drift_pause", use_container_width=True, type="primary"):
+                    st.session_state["drift_play"] = False
+                    st.rerun()
+            else:
+                if st.button("▶ Play", key="btn_drift_play", use_container_width=True, type="secondary"):
+                    st.session_state["drift_play"] = True
+                    st.rerun()
+
+        with col_ctl_step:
+            if st.button("↺ Reset (NOW)", key="btn_drift_reset_now", use_container_width=True):
+                st.session_state["drift_h"] = 0.0
+                st.session_state["drift_play"] = False
+                st.rerun()
+
+        milestone_buttons = [
+            (-12.0, "T-12h", col_ctl_m1),
+            (-6.0,  "T-6h",  col_ctl_m2),
+            (0.0,   "NOW",   col_ctl_m3),
+            (6.0,   "T+6h",  col_ctl_m4),
+            (12.0,  "T+12h", col_ctl_m5),
+            (24.0,  "T+24h", col_ctl_m6),
+        ]
+        for m_val, m_label, col in milestone_buttons:
+            with col:
+                is_active_ms = abs(st.session_state["drift_h"] - m_val) < 0.25
+                if st.button(m_label, key=f"btn_ms_{m_val}", use_container_width=True, type="primary" if is_active_ms else "secondary"):
+                    st.session_state["drift_h"] = m_val
+                    st.session_state["drift_play"] = False
+                    st.rerun()
+
+        # Continuous scrub slider
+        scrub_val = st.slider(
+            "Advection Horizon",
+            min_value=-12.0,
+            max_value=24.0,
+            value=float(st.session_state["drift_h"]),
+            step=0.5,
+            format="%+.1f hrs",
+            key="drift_slider_input",
+            label_visibility="collapsed",
+        )
+        if scrub_val != st.session_state["drift_h"]:
+            st.session_state["drift_h"] = scrub_val
+
+        # ── 4. Collapsible Technical Disclosure (Section 14: Collapsed by default) ──
+        with st.expander("Show Model Details & Scientific Disclosure", expanded=False):
+            render_html(f"""
+            <div style="font-size:14px; color:#cbd5e1; line-height:1.6; padding:8px 0;">
+                <div><strong>Current Vector:</strong> {c_speed:.2f} m/s @ {c_bearing:.0f}° True</div>
+                <div><strong>Wind Leeway:</strong> {w_factor * 100:.1f}% windage · {w_speed:.1f} m/s @ {w_bearing:.0f}° True</div>
+                <div><strong>Net Advection Vector:</strong> {net_drift_speed:.2f} m/s ({net_speed_knots:.2f} kn) @ {net_drift_bearing:.0f}° True</div>
+                <div><strong>Numerical Scheme:</strong> Discrete Euler forward/backward integration with linear dispersion growth (0.35 km/km).</div>
+                <div><strong>Data Source:</strong> INCOIS Coastal Ocean Currents & GFS Regional Surface Winds.</div>
+            </div>
+            """)
+
+        # Animation Playback Loop
         if st.session_state.get("drift_play", False):
             time.sleep(0.35)
             next_step = round(cur_h + 1.0, 1)
@@ -5334,7 +3410,6 @@ def render_drift_tab(final_state, is_demo):
             st.session_state["trigger_pipeline_run"] = True
             st.rerun()
 
-
 # =========================================================================
 # SECTION 6: COASTAL RISK & SHORELINE VULNERABILITY SCREEN
 # =========================================================================
@@ -5349,7 +3424,7 @@ def render_risk_tab(final_state, is_demo):
 
         # Risk Banner
         r_css = "color:#ef4444;" if risk_level == "CRITICAL" else ("color:#f59e0b;" if risk_level in ("HIGH", "MEDIUM") else "color:#34d399;")
-        st.markdown(f"""
+        render_html(f"""
         <div class="glass-panel" style="padding:18px; margin-bottom:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
@@ -5359,52 +3434,52 @@ def render_risk_tab(final_state, is_demo):
                 {render_tag('PREDICTED')}
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
         # Coastal Metrics
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            st.markdown(f"""
+            render_html(f"""
             <div class="metric-card glass-panel">
                 <div class="telemetry-label">SHORELINE PROXIMITY</div>
                 <div class="metric-value">{coastal.get('shortest_distance_to_coast_km', 0.0):.1f} KM</div>
                 <div class="metric-sub">NEAREST: {coastal.get('nearest_shoreline_point', {}).get('name', 'N/A').upper()}</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
         with c2:
             eta = coastal.get("eta_to_coast_hours")
             eta_str = f"{eta:.1f} HRS" if eta else "NO LANDFALL"
-            st.markdown(f"""
+            render_html(f"""
             <div class="metric-card glass-panel">
                 <div class="telemetry-label">LANDFALL ETA</div>
                 <div class="metric-value">{eta_str}</div>
                 <div class="metric-sub">TRAJECTORY PROJECTION</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
         with c3:
-            st.markdown(f"""
+            render_html(f"""
             <div class="metric-card glass-panel">
                 <div class="telemetry-label">COASTAL VULNERABILITY</div>
                 <div class="metric-value">{coastal.get('coastal_vulnerability_score', 0.0):.0f}/100</div>
                 <div class="metric-sub">TIER: {coastal.get('risk_tier', 'LOW')}</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
         with c4:
-            st.markdown(f"""
+            render_html(f"""
             <div class="metric-card glass-panel">
                 <div class="telemetry-label">THREATENED ASSETS</div>
                 <div class="metric-value">{coastal.get('threatened_assets_count', 0)}</div>
                 <div class="metric-sub">ECOLOGICAL & INFRASTRUCTURE</div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
 
         # Geospatial Risk & Threat Map
-        st.markdown(f"""
+        render_html(f"""
         <div class="map-tactical-header">
             <div><span class="status-pulse-sm"></span><span class="map-tactical-title">TACTICAL COASTAL RISK & SENSITIVITY CORRIDOR // EPSG:4326</span></div>
             <div>NEAREST: {coastal.get('nearest_shoreline_point', {}).get('name', 'SHORELINE').upper()} • ETA: {eta_str}</div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
         fmap_risk = build_investigation_map(
             final_state,
             slider_minutes=st.session_state.get("timeline_min", 0),
@@ -5420,20 +3495,20 @@ def render_risk_tab(final_state, is_demo):
             for t in threatened:
                 t_level = t.get("threat_level", "MONITOR")
                 t_color = "#f87171" if t_level == "IMMINENT" else ("#fbbf24" if t_level == "HIGH_RISK" else "#38bdf8")
-                st.markdown(f"""
-                <div class="glass-panel" style="border-left:3px solid {t_color} !important; padding:12px 16px; margin-bottom:8px;">
+                render_html(f"""
+                <div class="glass-panel" style="border-left:3px solid {t_color} !important; padding:14px 18px; margin-bottom:10px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <strong style="color:#f8fafc; font-size:13px;">{t['name']} ({t.get('category', 'Asset').upper()})</strong>
-                        <span style="color:{t_color}; font-weight:700; font-size:10px; font-family:'JetBrains Mono';">{t_level} • ESI {t.get('esi', 5)}/10</span>
+                        <strong style="color:#f8fafc; font-size:15px;">{t['name']} ({t.get('category', 'Asset').upper()})</strong>
+                        <span style="color:{t_color}; font-weight:700; font-size:12px; font-family:'JetBrains Mono';">{t_level} • ESI {t.get('esi', 5)}/10</span>
                     </div>
-                    <div style="font-size:11px; font-family:'JetBrains Mono'; color:#94a3b8; margin:4px 0;">
+                    <div style="font-size:13px; font-family:'JetBrains Mono'; color:#94a3b8; margin:6px 0;">
                         DISTANCE: {t.get('distance_from_spill_km', 0):.1f} KM | AUTHORITY: {t.get('contact_authority', 'Port Trust').upper()}
                     </div>
-                    <div style="font-size:12px; color:#34d399;">
+                    <div style="font-size:13px; color:#34d399;">
                         STRATEGY: {t.get('recommended_strategy', 'Deploy containment booms')}
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+                """)
 
         # Environmental Countermeasure Rules
         crecs = coastal.get("containment_recommendations", [])
@@ -5459,7 +3534,7 @@ def render_reports_tab(final_state, is_demo):
         report = final_state.get("incident_report", {})
 
         # Dossier Summary Box
-        st.markdown(f"""
+        render_html(f"""
         <div class="glass-panel" style="padding:18px; margin-bottom:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
@@ -5468,11 +3543,11 @@ def render_reports_tab(final_state, is_demo):
                 </div>
                 {render_tag('OFFICIAL')}
             </div>
-            <div style="margin-top:10px; font-size:11px; font-family:'JetBrains Mono'; color:#94a3b8;">
+            <div style="margin-top:10px; font-size:13px; font-family:'JetBrains Mono'; color:#94a3b8;">
                 CLASSIFICATION: <strong style="color:#e2e8f0;">{report.get('classification', 'CONFIDENTIAL')}</strong> • GENERATED: {report.get('generated_at', '2026-09-14 15:35 UTC')}
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
         # Download Actions
         col_down1, col_down2 = st.columns(2)
@@ -5581,7 +3656,7 @@ def render_ingestion_panel():
 
     act_img = st.session_state.get("active_image_path")
     if act_img and os.path.exists(act_img):
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_html("<br>")
         if st.button("⚡ EXECUTE MULTI-NODE INTELLIGENCE PIPELINE", type="primary", use_container_width=True, key="panel_exec_btn"):
             st.session_state["trigger_pipeline_run"] = True
             st.rerun()
@@ -5591,98 +3666,126 @@ def render_ingestion_panel():
 # MINIMAL HIGH-IMPACT LANDING SCREEN
 # =========================================================================
 def render_landing_screen():
-    st.markdown("""
+    render_html("""
     <style>
         [data-testid="stSidebar"] { display: none !important; }
-        .block-container { max-width: 1200px !important; padding-top: 2.5rem !important; }
+        .block-container { max-width: 1160px !important; margin: 0 auto !important; padding-top: 1rem !important; }
     </style>
-    """, unsafe_allow_html=True)
+    """)
 
-    # Hero Container
-    st.markdown("""
-    <div class="landing-hero-container">
-        <div class="landing-badge">
-            <span class="status-pulse-sm"></span>
-            SENTINEL-1 C-SAR OPERATIONAL // EPSG:4326 // AUTONOMOUS MARITIME C2
+    # ── Minimal Cinematic Top Navigation Header (Section 11) ──
+    render_html("""
+    <header class="homepage-nav-bar">
+        <div class="homepage-brand">
+            <span class="homepage-brand-title">JAL-RAKSHAK</span>
+            <span class="homepage-brand-badge">MARITIME INTELLIGENCE</span>
         </div>
-        <h1 class="landing-title">JAL-RAKSHAK</h1>
-        <p class="landing-subtitle">
-            Autonomous Maritime Satellite Intelligence & Forensic Oil Spill Attribution Platform. 
-            Coupling Sentinel-1 Synthetic Aperture Radar, 3-tier classical consensus verification, 
-            hydrodynamic Euler hindcast drift, and spatiotemporal AIS fleet reconstruction.
-        </p>
-        
-        <div class="landing-telemetry-strip">
-            <div class="landing-telemetry-item">
-                <span class="status-pulse-sm" style="background:#10b981;"></span>
-                <span>RADAR: <strong>SENTINEL-1A C-SAR (VV+VH)</strong></span>
+        <div class="homepage-nav-center">
+            <span class="status-pulse-sm" style="background:#00D9FF;"></span>
+            <span class="homepage-status-text">SYSTEM READY &nbsp;·&nbsp; SATELLITE RECONNAISSANCE</span>
+        </div>
+        <div class="homepage-nav-actions">
+            <span class="homepage-cmd-pill">
+                COMMANDS <kbd>⌘K</kbd>
+            </span>
+        </div>
+    </header>
+    """)
+
+    # ── Atmospheric Hero Section with Delicate SVG Geometry (Sections 3, 4, 5) ──
+    render_html("""
+    <div class="hero-wrapper">
+        <svg class="hero-svg-atmosphere" viewBox="0 0 1000 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <radialGradient id="heroAtmosphereGlow" cx="50%" cy="35%" r="55%">
+                    <stop offset="0%" stop-color="#00D9FF" stop-opacity="0.08" />
+                    <stop offset="50%" stop-color="#178BFF" stop-opacity="0.02" />
+                    <stop offset="100%" stop-color="#070A12" stop-opacity="0" />
+                </radialGradient>
+                <linearGradient id="orbitalGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#00D9FF" stop-opacity="0.02" />
+                    <stop offset="35%" stop-color="#00D9FF" stop-opacity="0.28" />
+                    <stop offset="65%" stop-color="#38bdf8" stop-opacity="0.22" />
+                    <stop offset="100%" stop-color="#178BFF" stop-opacity="0.02" />
+                </linearGradient>
+            </defs>
+            <rect width="1000" height="400" fill="url(#heroAtmosphereGlow)" />
+            <path d="M 80,340 C 280,110 720,110 920,340" stroke="url(#orbitalGrad)" stroke-width="1.5" stroke-dasharray="5 7" />
+            <path d="M 140,360 C 320,170 680,170 860,360" stroke="rgba(143, 161, 183, 0.10)" stroke-width="1" />
+            <circle cx="680" cy="148" r="4.5" fill="#00D9FF" />
+            <circle cx="680" cy="148" r="14" stroke="#00D9FF" stroke-width="1" stroke-dasharray="2 3" opacity="0.4" />
+            <line x1="680" y1="148" x2="680" y2="280" stroke="rgba(0, 217, 255, 0.14)" stroke-dasharray="2 4" />
+            <polygon points="675,280 685,280 680,288" fill="rgba(0, 217, 255, 0.25)" />
+            <path d="M 680,148 L 590,310 L 770,310 Z" fill="rgba(0, 217, 255, 0.015)" stroke="rgba(0, 217, 255, 0.08)" stroke-width="0.75" stroke-dasharray="3 5" />
+            <g stroke="rgba(255, 255, 255, 0.10)" stroke-width="1">
+                <line x1="220" y1="180" x2="230" y2="180" />
+                <line x1="225" y1="175" x2="225" y2="185" />
+                <line x1="775" y1="210" x2="785" y2="210" />
+                <line x1="780" y1="205" x2="780" y2="215" />
+                <line x1="495" y1="110" x2="505" y2="110" />
+                <line x1="500" y1="105" x2="500" y2="115" />
+            </g>
+            <path d="M 40,380 Q 200,335 380,380" stroke="rgba(56, 189, 248, 0.07)" stroke-width="1" fill="none" />
+            <path d="M 620,380 Q 800,340 960,380" stroke="rgba(56, 189, 248, 0.07)" stroke-width="1" fill="none" />
+        </svg>
+        <div class="hero-content">
+            <div class="hero-status-pill">
+                <span class="status-pulse-sm" style="background:#00D9FF;"></span>
+                SYSTEM OPERATIONAL &nbsp;·&nbsp; SATELLITE RECONNAISSANCE
             </div>
-            <div class="landing-telemetry-item">
-                <span class="status-pulse-sm" style="background:#00e5ff;"></span>
-                <span>OCEAN: <strong>INCOIS / GFS 0.1° CURRENTS</strong></span>
-            </div>
-            <div class="landing-telemetry-item">
-                <span class="status-pulse-sm" style="background:#38bdf8;"></span>
-                <span>AIS RECON: <strong>LIVE SPATIOTEMPORAL STREAM</strong></span>
-            </div>
-            <div class="landing-telemetry-item">
-                <span class="status-pulse-sm" style="background:#8b5cf6;"></span>
-                <span>ENGINE: <strong>LANGGRAPH 11-NODE GRAPH</strong></span>
-            </div>
+            <h1 class="hero-title">JAL-RAKSHAK</h1>
+            <div class="hero-subtitle">MARITIME INTELLIGENCE PLATFORM</div>
+            <div class="hero-tagline">Detect. Correlate. Trace. Understand.</div>
+            <p class="hero-description">
+                Satellite-based oil-spill detection, vessel correlation, source reconstruction and drift intelligence.
+            </p>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
-    # 2 Mode Selection Cards
+    # ── Two Primary Equal Action Cards (Sections 6, 7, 8, 9) ──
     col_card1, col_card2 = st.columns(2)
 
     with col_card1:
-        st.markdown("""
-        <div class="mode-card mode-card-live">
+        render_html("""
+        <div class="action-card action-card-live">
             <div>
-                <span class="mode-card-badge">LIVE SATELLITE COMMAND</span>
-                <div class="mode-card-title">
-                    <span>🛰️</span> Live Operations Center
+                <div class="action-card-badge badge-live">
+                    <span class="status-pulse-sm" style="background:#00D9FF;"></span> LIVE DATA READY
                 </div>
-                <p class="mode-card-desc">
-                    Direct tactical multi-sensor interface. Draw arbitrary polygon bounding boxes to query regional ship traffic, inspect live AIS vessel telemetry, calibrate dark-spot thresholds, and command on-demand radar passes.
+                <div class="action-card-title">Live Operations</div>
+                <p class="action-card-body">
+                    Investigate maritime activity through a live geospatial intelligence canvas. Monitor fleet traffic, draw custom spatial queries, and inspect dark targets.
                 </p>
-                <ul class="mode-card-features">
-                    <li><span class="feat-bullet">⚡</span> Arbitrary Polygon Selection & Regional Spatial Queries</li>
-                    <li><span class="feat-bullet">🚢</span> Real-Time Fleet Radar with Marker Clustering</li>
-                    <li><span class="feat-bullet">🎯</span> Interactive Target Focus & Candidate Drawer</li>
-                    <li><span class="feat-bullet">📁</span> Custom SAR GeoTIFF & AIS Archive Ingestion</li>
-                </ul>
+            </div>
+            <div class="action-card-features">
+                MAP &nbsp;·&nbsp; AIS &nbsp;·&nbsp; REGION QUERY &nbsp;·&nbsp; SAR
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
         if st.button("ENTER LIVE OPERATIONS →", key="btn_enter_live", type="primary", use_container_width=True):
             st.session_state["app_mode"] = "live"
             st.query_params["mode"] = "live"
             st.rerun()
 
     with col_card2:
-        st.markdown("""
-        <div class="mode-card mode-card-demo">
+        render_html("""
+        <div class="action-card action-card-demo">
             <div>
-                <span class="mode-card-badge">CURATED EVALUATION WALKTHROUGH</span>
-                <div class="mode-card-title">
-                    <span>🧪</span> Guided Demo & Evaluation
+                <div class="action-card-badge badge-demo">
+                    <span class="status-pulse-sm" style="background:#38bdf8;"></span> GUIDED INVESTIGATION
                 </div>
-                <p class="mode-card-desc">
-                    5-step investigative narrative of the confirmed Chennai Port Outer Anchorage spill. Step-by-step evaluation designed for SIH judges and port authorities demonstrating end-to-end evidence synthesis.
+                <div class="action-card-title">Guided Demo</div>
+                <p class="action-card-body">
+                    Follow a complete forensic oil-spill investigation from SAR detection through vessel correlation, backtrack reconstruction, and shoreline impact.
                 </p>
-                <ul class="mode-card-features">
-                    <li><span class="feat-bullet">🔬</span> Step 1: SAR Detection & Consensus Scorecard</li>
-                    <li><span class="feat-bullet">⚖️</span> Step 2: AIS Vessel Correlation (MT Ocean Pioneer)</li>
-                    <li><span class="feat-bullet">⏱️</span> Step 3: Origin Hindcast & Euler Drift Backtrack</li>
-                    <li><span class="feat-bullet">🛡️</span> Step 4: Forward Trajectory & Coastal ESI Threat</li>
-                    <li><span class="feat-bullet">📄</span> Step 5: Automated Tamper-Evident PDF Dossier</li>
-                </ul>
+            </div>
+            <div class="action-card-features">
+                SAR &nbsp;→&nbsp; AIS &nbsp;→&nbsp; SOURCE &nbsp;→&nbsp; DRIFT &nbsp;→&nbsp; REPORT
             </div>
         </div>
-        """, unsafe_allow_html=True)
-        if st.button("LAUNCH GUIDED DEMO →", key="btn_enter_demo", type="secondary", use_container_width=True):
+        """)
+        if st.button("START GUIDED DEMO →", key="btn_enter_demo", type="secondary", use_container_width=True):
             st.session_state["app_mode"] = "demo"
             st.query_params["mode"] = "demo"
             st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
@@ -5693,33 +3796,56 @@ def render_landing_screen():
             st.session_state["auto_run"] = True
             st.rerun()
 
-    # Bottom Operational Presets
-    st.markdown("<br><hr style='border-color:rgba(255,255,255,0.06); margin:32px 0 24px 0;'>", unsafe_allow_html=True)
-    st.markdown("<div style='text-align:center; font-family:var(--font-mono); font-size:11px; color:#64748b; margin-bottom:12px;'>QUICK CALIBRATED SCENARIO ANCHORS</div>", unsafe_allow_html=True)
+    # ── Below The Fold: From Signal to Situation (Section 14) ──
+    render_html("""
+    <div class="homepage-stages-section">
+        <div class="stages-eyebrow">INTELLIGENCE WORKFLOW</div>
+        <h2 class="stages-title">FROM SIGNAL TO SITUATION</h2>
+        <div class="stages-grid">
+            <div class="stage-item">
+                <div class="stage-number">01</div>
+                <div class="stage-name">DETECT</div>
+                <p class="stage-desc">Satellite radar imagery identifies potential dark oil-slick signatures with multi-algorithm consensus validation.</p>
+            </div>
+            <div class="stage-connector">→</div>
+            <div class="stage-item">
+                <div class="stage-number">02</div>
+                <div class="stage-name">CORRELATE</div>
+                <p class="stage-desc">AIS fleet broadcasts provide vessel context, spatiotemporal proximity, and heading anomaly scoring.</p>
+            </div>
+            <div class="stage-connector">→</div>
+            <div class="stage-item">
+                <div class="stage-number">03</div>
+                <div class="stage-name">TRACE</div>
+                <p class="stage-desc">Euler advection hindcast reverses ocean currents and wind leeway to reconstruct the probable source origin.</p>
+            </div>
+            <div class="stage-connector">→</div>
+            <div class="stage-item">
+                <div class="stage-number">04</div>
+                <div class="stage-name">FORECAST</div>
+                <p class="stage-desc">Hydrodynamic drift projection models future slick trajectory, shoreline time-to-beach, and coastal sensitivity.</p>
+            </div>
+        </div>
+    </div>
+    """)
 
-    col_sc1, col_sc2 = st.columns(2)
-    with col_sc1:
-        if st.button("⚡ Mount Chennai Confirmed Incident (Bay of Bengal)", key="landing_sc_chennai", use_container_width=True):
-            st.session_state["app_mode"] = "demo"
-            st.query_params["mode"] = "demo"
-            st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
-            st.session_state["spill_lat"] = CHENNAI_SCENARIO.spill_lat
-            st.session_state["spill_lon"] = CHENNAI_SCENARIO.spill_lon
-            st.session_state["current_scene_name"] = "Chennai Port Outer Anchorage (512x512)"
-            st.session_state["demo_step"] = 1
-            st.session_state["auto_run"] = True
-            st.rerun()
-    with col_sc2:
-        if st.button("🛡️ Mount Istanbul Negative Control (Bosphorus Strait)", key="landing_sc_istanbul", use_container_width=True):
-            st.session_state["app_mode"] = "live"
-            st.query_params["mode"] = "live"
-            st.session_state["active_image_path"] = "data/test_sar_scene.jpg"
-            st.session_state["spill_lat"] = 41.1100
-            st.session_state["spill_lon"] = 29.0500
-            st.session_state["current_scene_name"] = "Istanbul Bosphorus Strait (1222x1600)"
-            st.session_state["auto_run"] = True
-            st.rerun()
-
+    # ── Subtle Technical Footer (Section 10) ──
+    render_html("""
+    <footer class="homepage-footer">
+        <div class="footer-pills">
+            <span class="footer-pill">SENTINEL-1 SAR</span>
+            <span class="footer-dot">·</span>
+            <span class="footer-pill">AIS CORRELATION</span>
+            <span class="footer-dot">·</span>
+            <span class="footer-pill">EULER DRIFT MODEL</span>
+            <span class="footer-dot">·</span>
+            <span class="footer-pill">INCIDENT DOSSIER</span>
+        </div>
+        <div class="footer-sub">
+            JAL-RAKSHAK // MARITIME OIL-SPILL INTELLIGENCE PLATFORM
+        </div>
+    </footer>
+    """)
 
 # =========================================================================
 # LIVE OPERATIONS SCREEN
@@ -5760,7 +3886,6 @@ def render_live_operations_screen(final_state, is_demo, spill_lat, spill_lon, ac
 # GUIDED DEMO EVALUATION SCREEN (5-STEP SIH JURY STORYTELLING WORKFLOW)
 # =========================================================================
 def render_demo_screen(final_state, is_demo, spill_lat, spill_lon, active_image):
-    # Ensure active demo scenario is loaded if not already present
     if not final_state:
         st.info("ℹ️ Initializing Chennai Incident intelligence pipeline...")
         st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
@@ -5775,105 +3900,99 @@ def render_demo_screen(final_state, is_demo, spill_lat, spill_lon, active_image)
     current_step = st.session_state["demo_step"]
 
     steps = [
-        {"idx": 1, "title": "SAR Detection & Consensus", "tag": "STEP 01"},
-        {"idx": 2, "title": "AIS Vessel Attribution", "tag": "STEP 02"},
-        {"idx": 3, "title": "Origin Hindcast Backtrack", "tag": "STEP 03"},
-        {"idx": 4, "title": "Forward Drift & Coastal Risk", "tag": "STEP 04"},
-        {"idx": 5, "title": "Incident Dossier & PDF", "tag": "STEP 05"},
+        {"idx": 1, "title": "SAR Detection", "desc": "Radar pass acquisition and classical consensus."},
+        {"idx": 2, "title": "AIS Correlation", "desc": "Fleet proximity and candidate vessel scoring."},
+        {"idx": 3, "title": "Source Analysis", "desc": "Euler advection backtrack to estimated origin."},
+        {"idx": 4, "title": "Drift Forensics", "desc": "Forward trajectory and coastal sensitivity threat."},
+        {"idx": 5, "title": "Regulatory Report", "desc": "Cryptographically hashed incident PDF dossier."},
     ]
 
-    st.markdown("### 🧪 Guided Forensic Investigation Walkthrough")
-    st.caption("Evaluation sequence designed for SIH jury and maritime operators — 5 interconnected stages of automated forensic intelligence.")
+    st.markdown("### 🧪 Guided SIH Evaluation Walkthrough")
+    st.caption("5-stage forensic intelligence progression analyzing the confirmed Chennai Port Outer Anchorage spill.")
 
-    # Stepper selector pills
+    # Compact stepper (Section 11)
     step_cols = st.columns(len(steps))
     for i, s in enumerate(steps):
         with step_cols[i]:
             is_active = (s["idx"] == current_step)
             is_completed = (s["idx"] < current_step)
             btn_type = "primary" if is_active else "secondary"
-            check_icon = "✓ " if is_completed else ("● " if is_active else f"{s['idx']} ")
-            if st.button(f"{check_icon}{s['title']}", key=f"demo_step_btn_{s['idx']}", type=btn_type, use_container_width=True):
+            icon = "✓ " if is_completed else ("● " if is_active else f"{s['idx']} ")
+            if st.button(f"{icon}{s['title']}", key=f"demo_step_btn_{s['idx']}", type=btn_type, use_container_width=True):
                 st.session_state["demo_step"] = s["idx"]
                 st.rerun()
 
-    st.markdown("<hr style='border-color:rgba(255,255,255,0.06); margin:16px 0 20px 0;'>", unsafe_allow_html=True)
+    render_html("<hr style='border-color:rgba(255,255,255,0.08); margin:12px 0 16px 0;'>")
 
     if current_step == 1:
-        st.markdown("""
+        render_html("""
         <div class="demo-narrative-box">
-            <strong style="color:#00e5ff;">PHASE 1 // SAR DETECTION & MULTI-TIER CONSENSUS VERIFICATION:</strong>
-            Sentinel-1A C-band SAR pass acquired over Chennai Port Outer Anchorage. 
-            Deep learning (YOLOv8) proposes dark candidate regions. To eliminate lookalikes (calm waters, biogenic slicks, land shadows), 
-            the 3-tier Classical Consensus Engine validates radar backscatter damping, Otsu/K-means segmentation, and marine domain masking.
+            <strong>STAGE 1 // SAR DETECTION & MULTI-TIER CONSENSUS:</strong>
+            Sentinel-1A C-band SAR pass acquired over Chennai Port Outer Anchorage. Deep learning (YOLOv8) proposes dark candidate regions, and the 6-algorithm classical consensus engine validates radar backscatter damping, Otsu/K-means segmentation, and marine domain masking to eliminate lookalikes.
         </div>
-        """, unsafe_allow_html=True)
+        """)
         render_sar_tab(final_state, is_demo=True, spill_lat=spill_lat, spill_lon=spill_lon, active_image=active_image)
 
     elif current_step == 2:
-        st.markdown("""
+        render_html("""
         <div class="demo-narrative-box">
-            <strong style="color:#00e5ff;">PHASE 2 // AIS FLEET CORRELATION & CANDIDATE ATTRIBUTION:</strong>
-            Fuses historical AIS broadcast archives with the observed spill footprint. Calculates spatiotemporal proximity, 
-            heading consistency, speed anomalies, and drift alignment to produce transparent, mathematical culpability scores.
-            Notice how <strong>MT Ocean Pioneer (MMSI: 413289000)</strong> scores 87.4% due to coincident presence and loitering.
+            <strong>STAGE 2 // AIS FLEET CORRELATION & CANDIDATE ATTRIBUTION:</strong>
+            Correlates historical AIS fleet broadcasts with the observed spill footprint. Calculates spatiotemporal proximity, speed anomalies, heading consistency, and loitering patterns. MT Ocean Pioneer (MMSI: 413289000) scores 87.4% association due to coincident presence.
         </div>
-        """, unsafe_allow_html=True)
+        """)
         render_ais_tab(final_state, is_demo=True)
 
     elif current_step == 3:
-        st.markdown("""
+        render_html("""
         <div class="demo-narrative-box">
-            <strong style="color:#00e5ff;">PHASE 3 // HYDRODYNAMIC ADVECTION HINDCAST (BACKTRACKING):</strong>
-            Because oil drifts downwind and with ocean currents between release and satellite overpass, we reverse-integrate 
-            the Euler advection equations using regional INCOIS / GFS currents (0.48 m/s @ 118°) and 3% windage. 
-            This backtracks the slick 180 minutes to its origin point (13.1380°N, 80.3710°E), which directly intersects the suspect vessel's track.
+            <strong>STAGE 3 // HYDRODYNAMIC ADVECTION HINDCAST (BACKTRACKING):</strong>
+            Reverses Euler advection equations using regional INCOIS/GFS currents (0.48 m/s @ 118°) and 3% wind leeway. Backtracks the slick 180 minutes to its origin point (13.1380°N, 80.3710°E), intersecting the suspect vessel's track.
         </div>
-        """, unsafe_allow_html=True)
+        """)
         render_drift_tab(final_state, is_demo=True)
 
     elif current_step == 4:
-        st.markdown("""
+        render_html("""
         <div class="demo-narrative-box">
-            <strong style="color:#00e5ff;">PHASE 4 // FORWARD TRAJECTORY FORECAST & SHORELINE IMPACT (ESI):</strong>
-            Projects the 48-hour forward drift envelope to compute time-to-beach and evaluate Environmental Sensitivity Index (ESI) 
-            risk. Pinpoints high-priority vulnerable zones (Chennai Port harbor basin, Marina Beach turtle nesting shores, Ennore Creek mangroves) 
-            for targeted boom containment.
+            <strong>STAGE 4 // FORWARD TRAJECTORY & SHORELINE IMPACT (ESI):</strong>
+            Projects forward advection to estimate time-to-beach and evaluate Environmental Sensitivity Index (ESI) risk, identifying high-priority shoreline zones (Marina Beach nesting grounds, Ennore Creek mangroves) for boom deployment.
         </div>
-        """, unsafe_allow_html=True)
+        """)
         render_risk_tab(final_state, is_demo=True)
 
     elif current_step == 5:
-        st.markdown("""
+        render_html("""
         <div class="demo-narrative-box">
-            <strong style="color:#00e5ff;">PHASE 5 // TAMPER-EVIDENT REGULATORY DOSSIER & PDF DISPATCH:</strong>
-            Synthesizes all multi-spectral sensor telemetry, mathematical consensus proof, AIS vessel telemetry, and forecast models 
-            into an official, cryptographically hashed incident dossier for the Indian Coast Guard and Directorate General of Shipping.
+            <strong>STAGE 5 // OFFICIAL INCIDENT DOSSIER & PDF DISPATCH:</strong>
+            Synthesizes all multi-spectral sensor telemetry, mathematical consensus proof, AIS fleet correlation, and trajectory models into an official incident dossier for maritime authorities.
         </div>
-        """, unsafe_allow_html=True)
+        """)
         render_reports_tab(final_state, is_demo=True)
 
-    # Bottom Step Stepper Navigation
-    st.markdown("<br><hr style='border-color:rgba(255,255,255,0.06); margin:24px 0 16px 0;'>", unsafe_allow_html=True)
+    # Clean Stepper Navigation
+    render_html("<br><hr style='border-color:rgba(255,255,255,0.08); margin:20px 0 16px 0;'>")
     col_nav1, col_nav2, col_nav3 = st.columns([3, 4, 3])
     with col_nav1:
         if current_step > 1:
-            if st.button("◀ PREVIOUS STEP", key="demo_btn_prev", use_container_width=True):
+            if st.button("◀ Previous Stage", key="demo_btn_prev", use_container_width=True):
                 st.session_state["demo_step"] = current_step - 1
                 st.rerun()
     with col_nav2:
-        st.markdown(f"<div style='text-align:center; font-family:var(--font-mono); font-size:12px; color:#94a3b8; padding-top:8px;'>STAGE {current_step} OF {len(steps)}: {steps[current_step-1]['title'].upper()}</div>", unsafe_allow_html=True)
+        render_html(f"""
+        <div style="text-align:center; font-family:var(--font-mono); font-size:13px; color:#94a3b8; padding-top:8px;">
+            STAGE {current_step} OF {len(steps)}: {steps[current_step-1]['title'].upper()}
+        </div>
+        """)
     with col_nav3:
         if current_step < len(steps):
-            if st.button("NEXT STEP ▶", key="demo_btn_next", type="primary", use_container_width=True):
+            if st.button("Next Stage ▶", key="demo_btn_next", type="primary", use_container_width=True):
                 st.session_state["demo_step"] = current_step + 1
                 st.rerun()
         else:
-            if st.button("🛰️ OPEN IN LIVE OPERATIONS", key="demo_btn_finish", type="primary", use_container_width=True):
+            if st.button("🛰️ Open in Live Operations", key="demo_btn_finish", type="primary", use_container_width=True):
                 st.session_state["app_mode"] = "live"
                 st.query_params["mode"] = "live"
                 st.rerun()
-
 
 # ──────────────────────────────────────────────────────────────
 # MAIN APPLICATION ROUTING CONTROLLER
@@ -5886,4 +4005,4 @@ if app_mode == "landing":
 elif app_mode == "demo":
     render_demo_screen(final_state, is_demo=True, spill_lat=spill_lat, spill_lon=spill_lon, active_image=active_image)
 else:
-    render_live_operations_screen(final_state, is_demo=is_demo, spill_lat=spill_lat, spill_lon=spill_lon, active_image=active_image)
+    render_live_operations_screen(final_state, is_demo=is_demo, spill_lat=spill_lat, spill_lon=spill_lon, active_image=active_image)
