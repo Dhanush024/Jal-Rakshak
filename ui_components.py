@@ -521,44 +521,46 @@ def render_segmented_layer_control(
     options = [layer.get("id", str(i)) for i, layer in enumerate(layers)]
     labels_map = {layer.get("id", str(i)): layer.get("label", layer.get("id", str(i))).upper() for i, layer in enumerate(layers)}
 
+    target_key = on_change_state_key or f"{key_prefix}_seg"
+    prev_key = f"{target_key}_last_valid"
+
+    # Ensure the target key has a valid value within current options
+    if target_key not in st.session_state or st.session_state[target_key] not in options:
+        fallback_val = active_layer_id if active_layer_id in options else options[0]
+        st.session_state[target_key] = fallback_val
+        st.session_state[prev_key] = fallback_val
+
     # Native Streamlit segmented_control if available (instant 1-click update)
     if hasattr(st, "segmented_control"):
-        ctrl_key = f"{key_prefix}_seg"
-        default_val = active_layer_id if active_layer_id in options else options[0]
-
-        # Sync widget key with external active_layer_id if changed externally
-        if ctrl_key not in st.session_state:
-            st.session_state[ctrl_key] = default_val
-        elif active_layer_id in options and st.session_state.get(f"{key_prefix}_last_ext") != active_layer_id:
-            st.session_state[ctrl_key] = active_layer_id
-            st.session_state[f"{key_prefix}_last_ext"] = active_layer_id
-
         selected = st.segmented_control(
             "Select Layer",
             options=options,
-            default=st.session_state.get(ctrl_key, default_val),
             format_func=lambda opt: labels_map.get(opt, opt),
-            key=ctrl_key,
+            key=target_key,
             label_visibility="collapsed",
             width="stretch",
         )
-        chosen = selected if selected else st.session_state.get(ctrl_key, default_val)
-        if on_change_state_key:
+        if selected is None:
+            # User clicked already active item; return last valid selection without modifying widget state
+            chosen = st.session_state.get(prev_key, fallback_val)
+        else:
+            chosen = selected
+            st.session_state[prev_key] = chosen
+
+        if on_change_state_key and on_change_state_key != target_key:
             st.session_state[on_change_state_key] = chosen
         return chosen
 
     # Fallback with pre-render on_click callback to prevent 2-click lag
-    state_store_key = f"{key_prefix}_active_state"
-    if state_store_key not in st.session_state:
-        st.session_state[state_store_key] = active_layer_id
-
-    current_active = st.session_state.get(state_store_key, active_layer_id)
+    current_active = st.session_state.get(target_key, active_layer_id)
     if current_active not in options:
-        current_active = active_layer_id
+        current_active = options[0]
+        st.session_state[target_key] = current_active
 
     def _set_active_layer(target_lid):
-        st.session_state[state_store_key] = target_lid
-        if on_change_state_key:
+        st.session_state[target_key] = target_lid
+        st.session_state[prev_key] = target_lid
+        if on_change_state_key and on_change_state_key != target_key:
             st.session_state[on_change_state_key] = target_lid
 
     cols = st.columns(len(layers))
@@ -579,7 +581,7 @@ def render_segmented_layer_control(
                 args=(lid,),
             )
 
-    return st.session_state.get(state_store_key, active_layer_id)
+    return st.session_state.get(target_key, active_layer_id)
 
 
 # =========================================================================

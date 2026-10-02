@@ -17,6 +17,7 @@ import html
 import math
 import numpy as np
 from datetime import datetime, timezone, timedelta
+from typing import List, Any, Dict, Optional, Tuple
 
 # ──────────────────────────────────────────────────────────────
 # OpenCV headless setup (production Codespaces safety)
@@ -55,6 +56,18 @@ from config.settings import (
 )
 from pipeline.graph import run_pipeline, compile_pipeline
 from geospatial.distance import haversine_km, destination_point, bearing_deg, polygon_area_km2
+from geospatial.temporal import (
+    validate_lat_lon,
+    parse_time_slice_hours,
+    calculate_drift_vector,
+    compute_temporal_position,
+    compute_drift_trajectory_points,
+    compute_all_time_slice_geometries,
+    sort_and_validate_track,
+    find_vessel_position_at_epoch,
+    calculate_map_bounds,
+    STANDARD_TIME_SLICES,
+)
 from demo.scenario import CHENNAI_SCENARIO, get_or_create_demo_sar_patch
 from reporting.pdf import generate_pdf_report
 from sar.detection import YOLODetector, render_detection_overlay
@@ -101,7 +114,7 @@ def _inject_theme_css():
     if os.path.exists(theme_path):
         try:
             with open(theme_path, "r", encoding="utf-8") as _f_theme:
-                st.markdown(f"<style>{_f_theme.read()}</style>", unsafe_allow_html=True)
+                st.markdown(f"<style>{_f_theme.read()}\n/* Prevent Streamlit from aggressively dimming elements during execution */\ndiv[data-stale=\"true\"] {{ opacity: 0.96 !important; filter: none !important; transition: opacity 0.1s ease !important; }}\n.stApp.running {{ opacity: 1 !important; }}</style>", unsafe_allow_html=True)
         except Exception:
             pass
 
@@ -1449,7 +1462,16 @@ def generate_sar_layer_image(image_path: str, layer: str, final_state: dict, vie
     return out
 
 
-def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=None, mode="ALL", focus_target=None, drift_hours=None, is_demo=False):
+def build_investigation_map(
+    state=None,
+    slider_minutes=0,
+    selected_vessel_mmsi=None,
+    mode="ALL",
+    focus_target=None,
+    drift_hours=None,
+    is_demo=False,
+    time_slice=None,
+):
     """
     Build the forensic Folium geospatial intelligence map with strict state & layer isolation:
     - In LIVE mode: only live vessels, live tracks, and live-detected slicks/regions appear.
@@ -1475,7 +1497,7 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
 
     spill_detected = bool(state.get("spill_detected", False))
 
-    # Ocean hydrodynamic parameters (only compute if hindcast available or in demo)
+    # Ocean hydrodynamic parameters
     has_drift_model = is_demo or bool(state.get("hindcast_done"))
     hindcast = state.get("hindcast_result", {}) if state else {}
     current_speed = float(hindcast.get("current_speed_ms", 0.48))
@@ -1485,37 +1507,40 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
     wind_factor = float(hindcast.get("wind_factor", 0.03))
 
     if has_drift_model:
-        cx = current_speed * math.sin(math.radians(current_bearing))
-        cy = current_speed * math.cos(math.radians(current_bearing))
-        wx = wind_factor * wind_speed * math.sin(math.radians(wind_bearing))
-        wy = wind_factor * wind_speed * math.cos(math.radians(wind_bearing))
-        vx = cx + wx
-        vy = cy + wy
-        net_drift_speed = math.sqrt(vx**2 + vy**2)
-        net_drift_bearing = math.degrees(math.atan2(vx, vy)) % 360
-        reverse_bearing = (net_drift_bearing + 180) % 360
-        net_speed_knots = net_drift_speed * 1.94384
-
-        d_m12 = net_drift_speed * (12.0 * 3600) / 1000.0
-        lat_m12, lon_m12 = destination_point(spill_lat, spill_lon, reverse_bearing, d_m12)
-        d_p24 = net_drift_speed * (24.0 * 3600) / 1000.0
-        lat_p24, lon_p24 = destination_point(spill_lat, spill_lon, net_drift_bearing, d_p24)
-        mid_lat = (lat_m12 + lat_p24) / 2.0
-        mid_lon = (lon_m12 + lon_p24) / 2.0
+        drift_vec = calculate_drift_vector(current_speed, current_bearing, wind_speed, wind_bearing, wind_factor)
+        net_drift_speed = drift_vec["net_drift_speed_ms"]
+        net_drift_bearing = drift_vec["net_drift_bearing_deg"]
+        reverse_bearing = drift_vec["reverse_bearing_deg"]
+        net_speed_knots = drift_vec["net_speed_knots"]
     else:
         net_drift_speed = 0.0
         net_drift_bearing = 0.0
         reverse_bearing = 180.0
         net_speed_knots = 0.0
-        lat_m12, lon_m12 = spill_lat, spill_lon
-        lat_p24, lon_p24 = spill_lat, spill_lon
-        mid_lat, mid_lon = spill_lat, spill_lon
-        d_m12, d_p24 = 0.0, 0.0
+
+    # Determine current elapsed hours
+    if time_slice is not None:
+        cur_h = parse_time_slice_hours(time_slice)
+    elif drift_hours is not None:
+        cur_h = float(drift_hours)
+    elif slider_minutes != 0:
+        cur_h = float(slider_minutes) / 60.0
+    else:
+        cur_h = parse_time_slice_hours(st.session_state.get("selected_source_time", "T0"))
 
     # Temporal reference
     ts = state.get("detection_timestamp")
-    base_time = datetime.fromisoformat(ts) if ts else datetime(2026, 9, 14, 15, 30, tzinfo=timezone.utc)
-    slider_time = base_time + timedelta(minutes=slider_minutes)
+    try:
+        clean_ts = ts.replace("Z", "+00:00") if ts else "2026-09-14T15:30:00+00:00"
+        base_time = datetime.fromisoformat(clean_ts)
+    except Exception:
+        base_time = datetime(2026, 9, 14, 15, 30, tzinfo=timezone.utc)
+    current_epoch = base_time + timedelta(hours=cur_h)
+
+    # Active slick position for current time slice / horizon
+    active_lat, active_lon, active_unc = compute_temporal_position(
+        spill_lat, spill_lon, net_drift_speed, net_drift_bearing, cur_h, base_uncertainty_km=0.8
+    )
 
     # Candidate vessels & tracking data
     tracks_data = state.get("ais_tracks", {}) or state.get("tracks", {}) or {}
@@ -1532,19 +1557,9 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
                 if str(t.get("mmsi")) == str(selected_vessel_mmsi):
                     recs = t.get("points", [])
                     break
-        if recs and isinstance(recs[0], dict):
-            target_vessel_pos = recs[0]
-            min_dt = float("inf")
-            for r in recs:
-                if isinstance(r, dict) and "timestamp" in r:
-                    try:
-                        r_time = datetime.fromisoformat(r["timestamp"])
-                        dt = abs((r_time - slider_time).total_seconds())
-                        if dt < min_dt:
-                            min_dt = dt
-                            target_vessel_pos = r
-                    except Exception:
-                        pass
+        cleaned_recs = sort_and_validate_track(recs)
+        if cleaned_recs:
+            target_vessel_pos = find_vessel_position_at_epoch(cleaned_recs, current_epoch) or cleaned_recs[0]
 
     if not target_vessel_pos and selected_vessel_mmsi:
         for v in (state.get("vessels", []) or []):
@@ -1553,27 +1568,12 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
                     target_vessel_pos = v
                     break
 
-    # Camera positioning
-    active_reg = state.get("region_selection") or state.get("drawn_polygon")
-    if active_reg and isinstance(active_reg, dict) and "min_lat" in active_reg:
-        center_lat = (active_reg["min_lat"] + active_reg["max_lat"]) / 2.0
-        center_lon = (active_reg["min_lon"] + active_reg["max_lon"]) / 2.0
-        zoom_val = 11
-    elif mode == "DRIFT" and has_drift_model:
-        center_lat, center_lon = mid_lat, mid_lon
-        zoom_val = 11
-    elif target_vessel_pos and (focus_target == "vessel" or (focus_target is None and selected_vessel_mmsi)):
-        center_lat, center_lon = float(target_vessel_pos["lat"]), float(target_vessel_pos["lon"])
-        zoom_val = 13
-    elif (focus_target == "spill" or mode == "SPILL") and spill_detected:
-        center_lat, center_lon = spill_lat, spill_lon
-        zoom_val = 13
-    elif (focus_target == "source" or mode in ("SOURCE", "BACKTRACK")) and has_drift_model:
-        center_lat, center_lon = source_lat, source_lon
-        zoom_val = 12
-    else:
-        center_lat, center_lon = (spill_lat, spill_lon) if is_demo else (13.0827, 80.2707)
-        zoom_val = 11 if is_demo else 10
+    # Collect visible geometries for automatic fitting (Phase 10)
+    visible_geoms: List[Any] = [[spill_lat, spill_lon]]
+
+    # Center location fallback
+    center_lat, center_lon = spill_lat, spill_lon
+    zoom_val = 11
 
     # Basemap construction
     carto_key = CARTO_API_KEY or os.getenv("CARTO_API_KEY", "")
@@ -1626,21 +1626,20 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
     # ──────────────────────────────────────────────────────────
     if mode == "DRIFT":
         if not has_drift_model:
-            # Clean empty drift view when no model has been executed
             folium.LayerControl(position="topright", collapsed=True).add_to(fmap)
             return fmap
 
-        fg_drift_origin = folium.FeatureGroup(name="Spill Origin (T-12h)", show=True)
-        fg_drift_history = folium.FeatureGroup(name="Historical Trajectory (T-12h → NOW)", show=True)
-        fg_drift_forecast = folium.FeatureGroup(name="Predicted Trajectory (NOW → T+24h)", show=True)
-        fg_drift_vector = folium.FeatureGroup(name="Current Drift Vector", show=True)
-        fg_drift_active = folium.FeatureGroup(name="Active Slick & Dispersion", show=True)
-        fg_coastal = folium.FeatureGroup(name="Protected Coastal Assets", show=True)
-
-        h_val = float(drift_hours if drift_hours is not None else (slider_minutes / 60.0))
+        fg_drift_origin = folium.FeatureGroup(name="[DEMO] Spill Origin (T-12h)", show=True)
+        fg_drift_history = folium.FeatureGroup(name="[DEMO] Historical Trajectory (T-12h → NOW)", show=True)
+        fg_drift_forecast = folium.FeatureGroup(name="[DEMO] Predicted Trajectory (NOW → T+24h)", show=True)
+        fg_drift_vector = folium.FeatureGroup(name="[DEMO] Current Drift Vector", show=True)
+        fg_drift_active = folium.FeatureGroup(name="[DEMO] Active Slick & Dispersion", show=True)
+        fg_coastal = folium.FeatureGroup(name="[DEMO] Protected Coastal Assets", show=True)
 
         # 1. Spill Origin at T-12h
-        unc_m12 = 0.8 + d_m12 * 0.35
+        lat_m12, lon_m12, unc_m12 = compute_temporal_position(spill_lat, spill_lon, net_drift_speed, net_drift_bearing, -12.0)
+        visible_geoms.append([lat_m12, lon_m12])
+
         folium.Circle(
             location=[lat_m12, lon_m12],
             radius=unc_m12 * 1000,
@@ -1649,13 +1648,14 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
             fill_color="#f59e0b",
             fill_opacity=0.14,
             dash_array="6 4",
+            weight=1.5,
             tooltip=f"Spill Origin Boundary (T-12h Uncertainty: ±{unc_m12:.1f} km)",
             popup=f"<b>Spill Origin Region</b><br>Horizon: T-12h<br>Coordinates: [{lat_m12:.4f}°N, {lon_m12:.4f}°E]",
         ).add_to(fg_drift_origin)
 
         folium.CircleMarker(
             location=[lat_m12, lon_m12],
-            radius=7,
+            radius=6,
             color="#f59e0b",
             weight=2,
             fill=True,
@@ -1667,25 +1667,19 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
         folium.Marker(
             location=[lat_m12, lon_m12],
             icon=folium.DivIcon(
-                html='<div style="font-size:10px; font-weight:700; font-family:monospace; color:#f59e0b; background:rgba(10,15,28,0.92); border:1px solid #f59e0b; padding:2px 7px; border-radius:4px; margin-top:-32px; margin-left:-55px; white-space:nowrap; box-shadow:0 0 10px rgba(245,158,11,0.35);">ORIGIN (T-12h)</div>'
+                html='<div style="font-size:10px; font-weight:700; font-family:monospace; color:#f59e0b; background:rgba(10,15,28,0.92); border:1px solid #f59e0b; padding:2px 6px; border-radius:4px; margin-top:-26px; margin-left:-36px; white-space:nowrap;">ORIGIN (T-12h)</div>'
             ),
         ).add_to(fg_drift_origin)
 
         # 2. Historical Trajectory (T-12h -> NOW)
-        hist_steps = 30
-        hist_pts = []
-        for s in range(hist_steps + 1):
-            frac = s / hist_steps
-            h_step = -12.0 * (1.0 - frac)
-            d_step = net_drift_speed * (abs(h_step) * 3600) / 1000.0
-            pt_lat, pt_lon = destination_point(spill_lat, spill_lon, reverse_bearing, d_step)
-            hist_pts.append([pt_lat, pt_lon])
+        hist_pts = compute_drift_trajectory_points(spill_lat, spill_lon, net_drift_speed, net_drift_bearing, -12.0, 0.0, steps=24)
+        visible_geoms.extend(hist_pts)
 
         AntPath(
             locations=hist_pts,
             color="#f59e0b",
             pulse_color="#00e5ff",
-            weight=4,
+            weight=3,
             delay=650,
             dash_array=[8, 14],
             opacity=0.90,
@@ -1695,9 +1689,9 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
         # Observation Point: NOW (T=0)
         folium.CircleMarker(
             location=[spill_lat, spill_lon],
-            radius=7.5,
+            radius=7,
             color="#ef4444",
-            weight=2.5,
+            weight=2,
             fill=True,
             fill_color="#ef4444",
             fill_opacity=1.0,
@@ -1705,20 +1699,14 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
         ).add_to(fg_drift_history)
 
         # 3. Predicted Trajectory (NOW -> T+24h)
-        fc_steps = 48
-        fc_pts = []
-        for s in range(fc_steps + 1):
-            frac = s / fc_steps
-            h_step = 24.0 * frac
-            d_step = net_drift_speed * (h_step * 3600) / 1000.0
-            pt_lat, pt_lon = destination_point(spill_lat, spill_lon, net_drift_bearing, d_step)
-            fc_pts.append([pt_lat, pt_lon])
+        fc_pts = compute_drift_trajectory_points(spill_lat, spill_lon, net_drift_speed, net_drift_bearing, 0.0, 24.0, steps=36)
+        visible_geoms.extend(fc_pts)
 
         AntPath(
             locations=fc_pts,
             color="#8b5cf6",
             pulse_color="#ffffff",
-            weight=4,
+            weight=3,
             delay=650,
             dash_array=[8, 16],
             opacity=0.90,
@@ -1726,31 +1714,19 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
         ).add_to(fg_drift_forecast)
 
         # 4. Active Slick Dispersion Centroid
-        if abs(h_val) < 0.01:
-            active_lat, active_lon = spill_lat, spill_lon
-            active_uncertainty = 0.8
-            color_active = "#ef4444"
-        elif h_val < 0.0:
-            active_cum_dist = net_drift_speed * (abs(h_val) * 3600) / 1000.0
-            active_lat, active_lon = destination_point(spill_lat, spill_lon, reverse_bearing, active_cum_dist)
-            active_uncertainty = 0.8 + active_cum_dist * 0.35
-            color_active = "#f59e0b"
-        else:
-            active_cum_dist = net_drift_speed * (h_val * 3600) / 1000.0
-            active_lat, active_lon = destination_point(spill_lat, spill_lon, net_drift_bearing, active_cum_dist)
-            active_uncertainty = 0.8 + active_cum_dist * 0.35
-            color_active = "#8b5cf6"
+        color_active = "#00e5ff" if cur_h > 0 else ("#ef4444" if abs(cur_h) < 0.01 else "#f59e0b")
+        visible_geoms.append([active_lat, active_lon])
 
         folium.Circle(
             location=[active_lat, active_lon],
-            radius=active_uncertainty * 1000,
+            radius=active_unc * 1000,
             color=color_active,
             fill=True,
             fill_color=color_active,
-            fill_opacity=0.22,
+            fill_opacity=0.20,
             weight=2,
             dash_array="5 4",
-            tooltip=f"Projected Dispersion Zone at T{h_val:+0.1f}h",
+            tooltip=f"Projected Dispersion Zone at T{cur_h:+0.1f}h (±{active_unc:.1f} km)",
         ).add_to(fg_drift_active)
 
         folium.CircleMarker(
@@ -1759,18 +1735,17 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
             color="#ffffff",
             weight=2.5,
             fill=True,
-            fill_color="#00e5ff" if h_val > 0 else ("#ef4444" if abs(h_val) < 0.01 else "#f59e0b"),
+            fill_color=color_active,
             fill_opacity=1.0,
-            tooltip=f"Active Slick Centroid (T{h_val:+0.1f}h): {active_lat:.4f}°N, {active_lon:.4f}°E",
+            tooltip=f"Active Slick Centroid (T{cur_h:+0.1f}h): {active_lat:.4f}°N, {active_lon:.4f}°E",
         ).add_to(fg_drift_active)
 
         # 5. Drift Vector Arrow
-        vec_len_km = 3.2
-        vec_end_lat, vec_end_lon = destination_point(active_lat, active_lon, net_drift_bearing, vec_len_km)
+        vec_end_lat, vec_end_lon = destination_point(active_lat, active_lon, net_drift_bearing, 3.2)
         folium.PolyLine(
             locations=[[active_lat, active_lon], [vec_end_lat, vec_end_lon]],
             color="#00e5ff",
-            weight=4,
+            weight=3,
             opacity=0.95,
             tooltip=f"Current Drift Vector: {net_drift_speed:.2f} m/s @ {net_drift_bearing:.0f}° True",
         ).add_to(fg_drift_vector)
@@ -1796,11 +1771,278 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
         if is_demo:
             fg_coastal.add_to(fmap)
 
+        (min_lat, min_lon), (max_lat, max_lon) = calculate_map_bounds(visible_geoms)
+        fmap.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]], padding=(25, 25))
         folium.LayerControl(position="topright", collapsed=True).add_to(fmap)
         return fmap
 
     # ──────────────────────────────────────────────────────────
-    # NON-DRIFT MODES: LIVE VS DEMO ISOLATION
+    # MODE SOURCE / BACKTRACK: FORENSIC ORIGIN RECONSTRUCTION
+    # ──────────────────────────────────────────────────────────
+    if mode in ["SOURCE", "BACKTRACK"]:
+        fg_spill = folium.FeatureGroup(name="[DEMO] Observed Spill Footprint (T0)", show=True)
+        fg_source = folium.FeatureGroup(name="[DEMO] Origin Reconstruction (T-3H)", show=True)
+        fg_hindcast = folium.FeatureGroup(name="[DEMO] Backtrack Corridor (T-3H → T0)", show=True)
+        fg_forecast = folium.FeatureGroup(name="[DEMO] Forward Drift Horizon (T0 → T+24H)", show=True)
+        fg_nodes = folium.FeatureGroup(name="[DEMO] Temporal Nodes & Active Slick", show=True)
+        fg_tracks = folium.FeatureGroup(name="[DEMO] Candidate Vessel Tracks", show=True)
+        fg_vessels = folium.FeatureGroup(name="[DEMO] Candidate Vessel Positions", show=True)
+        fg_coastal = folium.FeatureGroup(name="[DEMO] Coastal Protection Assets", show=True)
+
+        # 1. Observed Spill Footprint (T0)
+        visible_geoms.append([spill_lat, spill_lon])
+        folium.CircleMarker(
+            location=[spill_lat, spill_lon],
+            radius=11,
+            color="#ef4444",
+            weight=2,
+            fill=True,
+            fill_color="#ef4444",
+            fill_opacity=0.45,
+            tooltip=f"Observed Spill Centroid (T0): {spill_lat:.4f}°N, {spill_lon:.4f}°E",
+        ).add_to(fg_spill)
+
+        folium.Marker(
+            location=[spill_lat, spill_lon],
+            icon=folium.DivIcon(
+                html='<div style="font-size:10px; font-weight:700; font-family:monospace; color:#ef4444; background:rgba(10,15,28,0.92); border:1px solid rgba(239,68,68,0.6); padding:2px 6px; border-radius:4px; margin-top:-26px; margin-left:-36px; white-space:nowrap;">OBSERVED (T0)</div>'
+            ),
+        ).add_to(fg_spill)
+
+        # 2. Source Region (T-3H)
+        lat_m3, lon_m3, unc_m3 = compute_temporal_position(spill_lat, spill_lon, net_drift_speed, net_drift_bearing, -3.0)
+        visible_geoms.append([lat_m3, lon_m3])
+
+        folium.Circle(
+            location=[lat_m3, lon_m3],
+            radius=unc_m3 * 1000,
+            color="#f59e0b",
+            fill=True,
+            fill_color="#f59e0b",
+            fill_opacity=0.14,
+            dash_array="6 4",
+            weight=1.5,
+            tooltip=f"Estimated Origin Zone (±{unc_m3:.1f} km)",
+        ).add_to(fg_source)
+
+        folium.CircleMarker(
+            location=[lat_m3, lon_m3],
+            radius=6,
+            color="#f59e0b",
+            weight=2,
+            fill=True,
+            fill_color="#00e5ff",
+            fill_opacity=0.9,
+            tooltip=f"Probable Source Centroid: {lat_m3:.4f}°N, {lon_m3:.4f}°E",
+        ).add_to(fg_source)
+
+        folium.Marker(
+            location=[lat_m3, lon_m3],
+            icon=folium.DivIcon(
+                html='<div style="font-size:10px; font-weight:700; font-family:monospace; color:#f59e0b; background:rgba(10,15,28,0.92); border:1px solid rgba(245,158,11,0.6); padding:2px 6px; border-radius:4px; margin-top:-26px; margin-left:-38px; white-space:nowrap;">SOURCE (T-3H)</div>'
+            ),
+        ).add_to(fg_source)
+
+        # 3. Backtrack Corridor: Solid thin line (Phase 5)
+        backtrack_pts = compute_drift_trajectory_points(spill_lat, spill_lon, net_drift_speed, net_drift_bearing, -3.0, 0.0, steps=15)
+        visible_geoms.extend(backtrack_pts)
+        folium.PolyLine(
+            locations=backtrack_pts,
+            color="#f59e0b",
+            weight=2.5,
+            opacity=0.95,
+            tooltip="Reverse Advection Backtrack Corridor (T-3H → T0)",
+        ).add_to(fg_hindcast)
+
+        # 4. Forward Drift Horizon: Dashed lighter line (Phase 5)
+        fc_pts = compute_drift_trajectory_points(spill_lat, spill_lon, net_drift_speed, net_drift_bearing, 0.0, 24.0, steps=24)
+        visible_geoms.extend(fc_pts)
+        folium.PolyLine(
+            locations=fc_pts,
+            color="#8b5cf6",
+            weight=2.0,
+            opacity=0.85,
+            dash_array="6 6",
+            tooltip="Predicted Forward Advection Horizon (T0 → T+24H)",
+        ).add_to(fg_forecast)
+
+        # 5. Temporal Milestones and Active Highlighted Slick (Phase 2, 5, 9)
+        milestones = [
+            ("T-3H", -3.0),
+            ("T0", 0.0),
+            ("T+6H", 6.0),
+            ("T+12H", 12.0),
+            ("T+24H", 24.0),
+        ]
+        for m_name, m_h in milestones:
+            m_lat, m_lon, m_unc = compute_temporal_position(spill_lat, spill_lon, net_drift_speed, net_drift_bearing, m_h)
+            visible_geoms.append([m_lat, m_lon])
+            is_active_node = (abs(cur_h - m_h) < 0.25)
+
+            if is_active_node:
+                # Active node: prominent highlight + dispersion boundary
+                folium.Circle(
+                    location=[m_lat, m_lon],
+                    radius=m_unc * 1000,
+                    color="#00e5ff",
+                    fill=True,
+                    fill_color="#00e5ff",
+                    fill_opacity=0.20,
+                    weight=2,
+                    dash_array="4 4",
+                    tooltip=f"Active Milestone: {m_name} (±{m_unc:.1f} km)",
+                ).add_to(fg_nodes)
+
+                folium.CircleMarker(
+                    location=[m_lat, m_lon],
+                    radius=9,
+                    color="#ffffff",
+                    weight=2.5,
+                    fill=True,
+                    fill_color="#00e5ff",
+                    fill_opacity=1.0,
+                    tooltip=f"Active Centroid at {m_name}: {m_lat:.4f}°N, {m_lon:.4f}°E",
+                ).add_to(fg_nodes)
+
+                folium.Marker(
+                    location=[m_lat, m_lon],
+                    icon=folium.DivIcon(
+                        html=f'<div style="font-size:10px; font-weight:800; font-family:monospace; color:#00e5ff; background:rgba(10,15,28,0.95); border:1.5px solid #00e5ff; padding:2px 7px; border-radius:4px; margin-top:-28px; margin-left:-30px; white-space:nowrap; box-shadow:0 0 10px rgba(0,229,255,0.4);">▶ {m_name}</div>'
+                    ),
+                ).add_to(fg_nodes)
+            else:
+                # Inactive node: smaller, muted reference node
+                if m_name not in ("T-3H", "T0"):  # T-3H and T0 already have custom markers
+                    folium.CircleMarker(
+                        location=[m_lat, m_lon],
+                        radius=4.5,
+                        color="#64748b",
+                        weight=1.5,
+                        fill=True,
+                        fill_color="#1e293b",
+                        fill_opacity=0.85,
+                        tooltip=f"Forecast Horizon: {m_name}",
+                    ).add_to(fg_nodes)
+
+                    folium.Marker(
+                        location=[m_lat, m_lon],
+                        icon=folium.DivIcon(
+                            html=f'<div style="font-size:9px; font-weight:600; font-family:monospace; color:#94a3b8; background:rgba(10,15,28,0.75); border:1px solid rgba(255,255,255,0.1); padding:1px 4px; border-radius:3px; margin-top:-22px; margin-left:-18px; white-space:nowrap;">{m_name}</div>'
+                        ),
+                    ).add_to(fg_nodes)
+
+        # 6. Candidate Vessels and Tracks (Phase 7 & Phase 9)
+        if isinstance(tracks_data, dict):
+            track_items = list(tracks_data.items())
+        elif isinstance(tracks_data, list):
+            track_items = [(t.get("mmsi", str(i)), t.get("points", [])) for i, t in enumerate(tracks_data)]
+        else:
+            track_items = []
+
+        for idx, (mmsi, recs) in enumerate(track_items):
+            cleaned_recs = sort_and_validate_track(recs)
+            if not cleaned_recs:
+                continue
+
+            is_selected = (str(mmsi) == str(selected_vessel_mmsi))
+            rank_info = ranking_map.get(mmsi, {})
+            score = rank_info.get("score", 0)
+            is_candidate = (score >= 50 or is_selected)
+            vessel_name = cleaned_recs[0].get("name", mmsi)
+
+            # Draw actual ordered track polyline
+            track_coords = [[p["lat"], p["lon"]] for p in cleaned_recs]
+            if len(track_coords) >= 2:
+                if is_selected:
+                    t_color = "#00e5ff"
+                    t_weight = 3.5
+                    t_dash = None
+                elif is_candidate:
+                    t_color = "#38bdf8"
+                    t_weight = 2.5
+                    t_dash = None
+                else:
+                    t_color = "rgba(100, 116, 139, 0.40)"
+                    t_weight = 1.5
+                    t_dash = "4 4"
+
+                folium.PolyLine(
+                    locations=track_coords,
+                    color=t_color,
+                    weight=t_weight,
+                    dash_array=t_dash,
+                    tooltip=f"Track for {vessel_name} (MMSI: {mmsi})",
+                ).add_to(fg_tracks)
+                visible_geoms.extend(track_coords)
+
+            # Temporal alignment: position vessel at active epoch (current_epoch)
+            v_pos = find_vessel_position_at_epoch(cleaned_recs, current_epoch)
+            if v_pos:
+                visible_geoms.append([v_pos["lat"], v_pos["lon"]])
+                if is_selected:
+                    folium.CircleMarker(
+                        location=[v_pos["lat"], v_pos["lon"]],
+                        radius=10,
+                        color="#00e5ff",
+                        weight=3,
+                        fill=True,
+                        fill_color="#00e5ff",
+                        fill_opacity=1.0,
+                        tooltip=f"TARGET: {vessel_name} (MMSI: {mmsi}) | At {current_epoch.strftime('%H:%M UTC')}",
+                    ).add_to(fg_vessels)
+                elif is_candidate:
+                    folium.CircleMarker(
+                        location=[v_pos["lat"], v_pos["lon"]],
+                        radius=6,
+                        color="#38bdf8",
+                        weight=2,
+                        fill=True,
+                        fill_color="#38bdf8",
+                        fill_opacity=0.9,
+                        tooltip=f"{vessel_name} (MMSI: {mmsi}) | Score: {score:.0f}/100",
+                    ).add_to(fg_vessels)
+                else:
+                    folium.CircleMarker(
+                        location=[v_pos["lat"], v_pos["lon"]],
+                        radius=4,
+                        color="#64748b",
+                        weight=1,
+                        fill=True,
+                        fill_color="#64748b",
+                        fill_opacity=0.45,
+                        tooltip=f"{vessel_name} (MMSI: {mmsi})",
+                    ).add_to(fg_vessels)
+
+        # 7. Sensitive Coastal Infrastructure (demo only)
+        if is_demo:
+            for sa in (CHENNAI_SCENARIO.sensitive_areas or []):
+                folium.CircleMarker(
+                    location=[sa["lat"], sa["lon"]],
+                    radius=5,
+                    color="#f59e0b",
+                    fill=True,
+                    fill_color="#f59e0b",
+                    fill_opacity=0.7,
+                    tooltip=f"{sa['name']} ({sa.get('type', 'Asset')})",
+                ).add_to(fg_coastal)
+
+        fg_spill.add_to(fmap)
+        fg_source.add_to(fmap)
+        fg_hindcast.add_to(fmap)
+        fg_forecast.add_to(fmap)
+        fg_nodes.add_to(fmap)
+        fg_tracks.add_to(fmap)
+        fg_vessels.add_to(fmap)
+        if is_demo:
+            fg_coastal.add_to(fmap)
+
+        (min_lat, min_lon), (max_lat, max_lon) = calculate_map_bounds(visible_geoms)
+        fmap.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]], padding=(25, 25))
+        folium.LayerControl(position="topright", collapsed=True).add_to(fmap)
+        return fmap
+
+    # ──────────────────────────────────────────────────────────
+    # NON-DRIFT/NON-SOURCE MODES: LIVE VS DEMO ISOLATION
     # ──────────────────────────────────────────────────────────
     if not is_demo:
         # LIVE OPERATIONS LAYERS
@@ -1816,26 +2058,29 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
             polygon_drawn = False
 
             if all_coords and bbox and len(bbox) == 4:
-                min_lat, min_lon, max_lat, max_lon = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
+                b_min_lat, b_min_lon, b_max_lat, b_max_lon = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
                 h, w = dims[0], dims[1]
                 for poly in all_coords:
                     if poly and len(poly) >= 3:
                         geo_poly = []
                         for pt in poly:
                             px_x, px_y = float(pt[0]), float(pt[1])
-                            pt_lat = max_lat - (px_y / h) * (max_lat - min_lat)
-                            pt_lon = min_lon + (px_x / w) * (max_lon - min_lon)
-                            geo_poly.append([pt_lat, pt_lon])
-                        folium.Polygon(
-                            locations=geo_poly,
-                            color="#ef4444",
-                            weight=2,
-                            fill=True,
-                            fill_color="#ef4444",
-                            fill_opacity=0.45,
-                            tooltip="Live Detected Oil Spill Polygon",
-                        ).add_to(fg_spill)
-                        polygon_drawn = True
+                            pt_lat = b_max_lat - (px_y / h) * (b_max_lat - b_min_lat)
+                            pt_lon = b_min_lon + (px_x / w) * (b_max_lon - b_min_lon)
+                            if validate_lat_lon(pt_lat, pt_lon):
+                                geo_poly.append([pt_lat, pt_lon])
+                        if len(geo_poly) >= 3:
+                            folium.Polygon(
+                                locations=geo_poly,
+                                color="#ef4444",
+                                weight=2,
+                                fill=True,
+                                fill_color="#ef4444",
+                                fill_opacity=0.45,
+                                tooltip="Live Detected Oil Spill Polygon",
+                            ).add_to(fg_spill)
+                            visible_geoms.extend(geo_poly)
+                            polygon_drawn = True
 
             if not polygon_drawn:
                 folium.CircleMarker(
@@ -1847,6 +2092,7 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
                     fill_opacity=0.40,
                     tooltip="Live Detected Oil Slick Centroid",
                 ).add_to(fg_spill)
+                visible_geoms.append([spill_lat, spill_lon])
 
             fg_spill.add_to(fmap)
 
@@ -1863,11 +2109,12 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
             track_items = []
 
         for idx, (mmsi, recs) in enumerate(track_items):
-            if not recs:
+            cleaned_recs = sort_and_validate_track(recs)
+            if not cleaned_recs:
                 continue
             is_selected = (str(mmsi) == str(selected_vessel_mmsi))
-            v_name = recs[0].get("name", mmsi) if isinstance(recs[0], dict) else mmsi
-            v_pos = recs[0]
+            v_name = cleaned_recs[0].get("name", mmsi)
+            v_pos = cleaned_recs[0]
             rendered_mmsis.add(str(mmsi))
 
             marker_color = "#00e5ff" if is_selected else ("#64748b" if has_selection else "#38bdf8")
@@ -1884,9 +2131,10 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
                 fill_opacity=fill_op,
                 tooltip=f"Vessel {v_name} (MMSI: {mmsi})",
             ).add_to(fg_vessels)
+            visible_geoms.append([v_pos["lat"], v_pos["lon"]])
 
             # Draw track polyline if selected or viewing all tracks
-            track_coords = [[p["lat"], p["lon"]] for p in recs if isinstance(p, dict) and "lat" in p and "lon" in p]
+            track_coords = [[p["lat"], p["lon"]] for p in cleaned_recs]
             if len(track_coords) >= 2:
                 track_color = "#00e5ff" if is_selected else ("rgba(100, 116, 139, 0.3)" if has_selection else "rgba(56, 189, 248, 0.45)")
                 track_weight = 3.5 if is_selected else 1.5
@@ -1897,6 +2145,7 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
                     dash_array="4 4" if not is_selected else None,
                     tooltip=f"Track for {v_name}",
                 ).add_to(fg_tracks)
+                visible_geoms.extend(track_coords)
 
         # Also render any live vessels from state["vessels"] not yet rendered
         for v in vessels_list:
@@ -1908,7 +2157,7 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
             rendered_mmsis.add(vmmsi)
             vlat = v.get("lat")
             vlon = v.get("lon")
-            if vlat is None or vlon is None:
+            if not validate_lat_lon(vlat, vlon):
                 continue
             is_selected = (vmmsi == str(selected_vessel_mmsi))
             v_name = v.get("name", f"MMSI {vmmsi}")
@@ -1926,22 +2175,24 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
                 fill_opacity=fill_op,
                 tooltip=f"Vessel {v_name} (MMSI: {vmmsi})",
             ).add_to(fg_vessels)
+            visible_geoms.append([float(vlat), float(vlon)])
 
         if rendered_mmsis:
             fg_vessels.add_to(fmap)
             fg_tracks.add_to(fmap)
 
     else:
-        # DEMO SCENARIO LAYERS
-        fg_spill = folium.FeatureGroup(name="[DEMO] Detected Spill Slick", show=(mode in ["ALL", "SPILL", "SOURCE", "BACKTRACK", "RISK"]))
+        # DEMO SCENARIO LAYERS (ALL / SPILL / AIS / RISK)
+        fg_spill = folium.FeatureGroup(name="[DEMO] Detected Spill Slick", show=(mode in ["ALL", "SPILL", "RISK"]))
         fg_source = folium.FeatureGroup(name="[DEMO] Origin Reconstruction", show=(mode in ["ALL", "SOURCE", "BACKTRACK"]))
         fg_hindcast = folium.FeatureGroup(name="[DEMO] Backtrack Trajectory", show=(mode in ["ALL", "BACKTRACK", "SOURCE"]))
         fg_forecast = folium.FeatureGroup(name="[DEMO] Forward Drift Forecast", show=(mode in ["ALL", "FORWARD DRIFT", "RISK"]))
-        fg_ais = folium.FeatureGroup(name="[DEMO] Fleet AIS Tracks", show=(mode in ["ALL", "AIS", "SOURCE"]))
-        fg_vessels = folium.FeatureGroup(name="[DEMO] Vessel Positions", show=(mode in ["ALL", "AIS", "SOURCE"]))
+        fg_ais = folium.FeatureGroup(name="[DEMO] Fleet AIS Tracks", show=(mode in ["ALL", "AIS"]))
+        fg_vessels = folium.FeatureGroup(name="[DEMO] Vessel Positions", show=(mode in ["ALL", "AIS"]))
         fg_coastal = folium.FeatureGroup(name="[DEMO] Coastal Protection Assets", show=(mode in ["ALL", "RISK"]))
 
         # 1. Spill Polygon
+        visible_geoms.append([spill_lat, spill_lon])
         folium.CircleMarker(
             location=[spill_lat, spill_lon],
             radius=14,
@@ -1954,6 +2205,7 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
         ).add_to(fg_spill)
 
         # 2. Origin Zone
+        visible_geoms.append([source_lat, source_lon])
         folium.Circle(
             location=[source_lat, source_lon],
             radius=uncertainty_km * 1000,
@@ -1968,25 +2220,18 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
         folium.Marker(
             location=[source_lat, source_lon],
             icon=folium.DivIcon(
-                html='<div style="font-size:10px; color:#f59e0b; font-weight:700; white-space:nowrap; background:rgba(11,17,32,0.85); border:1px solid rgba(245,158,11,0.4); padding:2px 6px; border-radius:4px;">▲ [DEMO] ORIGIN ESTIMATE</div>'
+                html='<div style="font-size:10px; color:#f59e0b; font-weight:700; white-space:nowrap; background:rgba(11,17,32,0.85); border:1px solid rgba(245,158,11,0.4); padding:2px 6px; border-radius:4px;">▲ ORIGIN ESTIMATE</div>'
             ),
         ).add_to(fg_source)
 
         # 3. Hindcast Backtrack AntPath
-        backtrack_waypoints = []
-        num_steps = 15
-        for s in range(num_steps + 1):
-            frac = s / num_steps
-            curv = np.sin(frac * np.pi) * 0.0035
-            pt_lat = spill_lat + frac * (source_lat - spill_lat) + curv
-            pt_lon = spill_lon + frac * (source_lon - spill_lon) - curv * 0.4
-            backtrack_waypoints.append([pt_lat, pt_lon])
-
+        backtrack_waypoints = compute_drift_trajectory_points(spill_lat, spill_lon, net_drift_speed, net_drift_bearing, -3.0, 0.0, steps=15)
+        visible_geoms.extend(backtrack_waypoints)
         AntPath(
             locations=backtrack_waypoints,
             color="#f59e0b",
             pulse_color="#00e5ff",
-            weight=4,
+            weight=3.5,
             delay=600,
             dash_array=[10, 16],
             opacity=0.95,
@@ -1999,21 +2244,15 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
         for i, fc in enumerate(forecasts):
             dest_lat = fc.get("destination_lat")
             dest_lon = fc.get("destination_lon")
-            if dest_lat and dest_lon:
+            if dest_lat and dest_lon and validate_lat_lon(dest_lat, dest_lon):
                 color = fc_colors[i % len(fc_colors)]
-                fc_waypoints = []
-                for s in range(16):
-                    frac = s / 15.0
-                    curv = np.sin(frac * np.pi) * 0.003
-                    pt_lat = spill_lat + frac * (dest_lat - spill_lat) + curv
-                    pt_lon = spill_lon + frac * (dest_lon - spill_lon) + curv * 0.5
-                    fc_waypoints.append([pt_lat, pt_lon])
-
+                fc_waypoints = compute_drift_trajectory_points(spill_lat, spill_lon, net_drift_speed, net_drift_bearing, 0.0, float(fc.get("hours", 6)), steps=16)
+                visible_geoms.extend(fc_waypoints)
                 AntPath(
                     locations=fc_waypoints,
                     color=color,
                     pulse_color="#ffffff",
-                    weight=3.5,
+                    weight=3.0,
                     delay=750,
                     dash_array=[8, 16],
                     opacity=0.90,
@@ -2042,17 +2281,17 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
 
         v_palette = ["#38bdf8", "#fbbf24", "#f87171", "#a78bfa", "#34d399"]
         for idx, (mmsi, recs) in enumerate(track_items):
-            if not recs:
+            cleaned_recs = sort_and_validate_track(recs)
+            if not cleaned_recs:
                 continue
             v_color = v_palette[idx % len(v_palette)]
             is_selected = (str(mmsi) == str(selected_vessel_mmsi))
             rank_info = ranking_map.get(mmsi, {})
             score = rank_info.get("score", 0)
-            vessel_name = recs[0].get("name", mmsi) if isinstance(recs[0], dict) else mmsi
-            v_pos = recs[0]
+            vessel_name = cleaned_recs[0].get("name", mmsi)
+            v_pos = cleaned_recs[0]
 
-            # Render track polyline (Section 11 & 16: candidate emphasized, unrelated muted)
-            track_coords = [[p["lat"], p["lon"]] for p in recs if isinstance(p, dict) and "lat" in p and "lon" in p]
+            track_coords = [[p["lat"], p["lon"]] for p in cleaned_recs]
             if len(track_coords) >= 2:
                 is_candidate = (score > 50 or is_selected)
                 if is_selected:
@@ -2061,10 +2300,10 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
                     t_dash = None
                 elif is_candidate:
                     t_color = "#38bdf8"
-                    t_weight = 2.8
+                    t_weight = 2.5
                     t_dash = None
                 else:
-                    t_color = "rgba(100, 116, 139, 0.45)"
+                    t_color = "rgba(100, 116, 139, 0.40)"
                     t_weight = 1.5
                     t_dash = "4 4"
 
@@ -2075,11 +2314,12 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
                     dash_array=t_dash,
                     tooltip=f"Track for {vessel_name} (MMSI: {mmsi})",
                 ).add_to(fg_ais)
+                visible_geoms.extend(track_coords)
 
             if is_selected:
                 folium.CircleMarker(
                     location=[v_pos["lat"], v_pos["lon"]],
-                    radius=12,
+                    radius=11,
                     color="#00e5ff",
                     weight=3,
                     fill=True,
@@ -2087,6 +2327,7 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
                     fill_opacity=0.95,
                     tooltip=f"TARGET: {vessel_name} (MMSI: {mmsi}) | Score: {score:.0f}/100",
                 ).add_to(fg_vessels)
+                visible_geoms.append([v_pos["lat"], v_pos["lon"]])
             else:
                 has_sel = bool(selected_vessel_mmsi)
                 folium.CircleMarker(
@@ -2099,6 +2340,7 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
                     fill_opacity=0.35 if has_sel else 0.7,
                     tooltip=f"{vessel_name} | MMSI: {mmsi} | Score: {score:.0f}/100",
                 ).add_to(fg_vessels)
+                visible_geoms.append([v_pos["lat"], v_pos["lon"]])
 
         fg_spill.add_to(fmap)
         fg_source.add_to(fmap)
@@ -2114,50 +2356,27 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
         active_poly = st.session_state.get("drawn_polygon")
     if active_poly and isinstance(active_poly, dict) and "coordinates" in active_poly:
         ring = active_poly["coordinates"]
-        poly_pts = [[p[1], p[0]] for p in ring]
-        fg_query_region = folium.FeatureGroup(name="Selected Region", show=True)
-        folium.Polygon(
-            locations=poly_pts,
-            color="#00e5ff",
-            weight=2.5,
-            fill=True,
-            fill_color="#00e5ff",
-            fill_opacity=0.20,
-            dash_array="5 5",
-            tooltip=f"Selected Region ({active_poly.get('area_km2', 0):.2f} km²)",
-        ).add_to(fg_query_region)
-        fg_query_region.add_to(fmap)
+        poly_pts = [[p[1], p[0]] for p in ring if validate_lat_lon(p[1], p[0])]
+        if len(poly_pts) >= 3:
+            fg_query_region = folium.FeatureGroup(name="Selected Region", show=True)
+            folium.Polygon(
+                locations=poly_pts,
+                color="#00e5ff",
+                weight=2.5,
+                fill=True,
+                fill_color="#00e5ff",
+                fill_opacity=0.20,
+                dash_array="5 5",
+                tooltip=f"Selected Region ({active_poly.get('area_km2', 0):.2f} km²)",
+            ).add_to(fg_query_region)
+            fg_query_region.add_to(fmap)
+            visible_geoms.extend(poly_pts)
+
+    # Calculate optimal map bounding box from visible entities (Phase 10)
+    (min_lat, min_lon), (max_lat, max_lon) = calculate_map_bounds(visible_geoms)
+    fmap.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]], padding=(25, 25))
 
     folium.LayerControl(position="topright", collapsed=True).add_to(fmap)
-
-    # Smooth camera flyTo transition script
-    fly_script = f"""
-    <script>
-    (function() {{
-        function tryFly() {{
-            try {{
-                var mapEl = document.querySelector('.folium-map');
-                if (mapEl && window[mapEl.id]) {{
-                    var map = window[mapEl.id];
-                    map.flyTo([{center_lat}, {center_lon}], {zoom_val}, {{
-                        duration: 1.0,
-                        easeLinearity: 0.25
-                    }});
-                }} else {{
-                    setTimeout(tryFly, 80);
-                }}
-            }} catch(e) {{}}
-        }}
-        if (document.readyState === 'complete') {{
-            setTimeout(tryFly, 100);
-        }} else {{
-            window.addEventListener('load', function() {{ setTimeout(tryFly, 100); }});
-        }}
-    }})();
-    </script>
-    """
-    fmap.get_root().html.add_child(folium.Element(fly_script))
-
     return fmap
 
 
@@ -2356,6 +2575,8 @@ if "selected_sar_layer" not in st.session_state:
     st.session_state["selected_sar_layer"] = "composite"
 if "sar_view_mode" not in st.session_state:
     st.session_state["sar_view_mode"] = "COMPOSITE"
+if "sar_workspace_view" not in st.session_state:
+    st.session_state["sar_workspace_view"] = "radar"
 if "selected_vessel" not in st.session_state:
     st.session_state["selected_vessel"] = None
 if "selected_source_time" not in st.session_state:
@@ -2364,6 +2585,8 @@ if "selected_stage" not in st.session_state:
     st.session_state["selected_stage"] = 1
 if "selected_map_layer" not in st.session_state:
     st.session_state["selected_map_layer"] = "all"
+if "cmd_map_mode" not in st.session_state:
+    st.session_state["cmd_map_mode"] = "ALL"
 
 
 query_mode = st.query_params.get("mode")
@@ -2412,135 +2635,114 @@ render_command_palette(cur_spill_lat, cur_spill_lon, cur_source_lat, cur_source_
 # ──────────────────────────────────────────────────────────────
 def render_unified_header(active_mode: str, active_view: str = "map", demo_step: int = 1):
     """
-    Renders the unified, compact 64-80px global navigation header.
-    Replaces all disparate navigation bars, ribbons, and mode switches with a single coherent header.
-    Clicking JAL-RAKSHAK from any page always returns to Home.
+    Renders minimal floating glass command header.
+    No redundant SAR/AIS/Drift/Report buttons — those are handled by the
+    contextual investigation rail inside each screen.
+
+    Layout:
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │ JAL-RAKSHAK    DEMO / SIMULATION       CHENNAI · INVESTIGATION 01   ⌘K │
+    └──────────────────────────────────────────────────────────────────────────┘
     """
     if active_mode == "landing":
-        hdr_col1, hdr_col2, hdr_col3, hdr_col4 = st.columns([4, 2, 2, 2])
-        with hdr_col1:
-            if st.button("JAL-RAKSHAK", key="hdr_brand_home", help="Return to Home"):
-                st.session_state["app_mode"] = "landing"
-                st.query_params["mode"] = "landing"
-                st.rerun()
-        with hdr_col2:
-            if st.button("LIVE OPERATIONS", key="hdr_nav_live", type="primary", use_container_width=True):
-                st.session_state["app_mode"] = "live"
-                st.query_params["mode"] = "live"
-                st.session_state["live_view"] = "map"
-                st.query_params["view"] = "map"
-                st.rerun()
-        with hdr_col3:
-            if st.button("DEMO", key="hdr_nav_demo", type="secondary", use_container_width=True):
-                st.session_state["app_mode"] = "demo"
-                st.query_params["mode"] = "demo"
-                st.session_state["demo_step"] = 1
-                st.rerun()
-        with hdr_col4:
-            render_html('<div class="homepage-cmd-pill" style="cursor:pointer; text-align:center;" onclick="window.parent.__jalOpenCmdPalette && window.parent.__jalOpenCmdPalette();">COMMANDS <kbd>⌘K</kbd></div>')
+        # Landing page uses its own built-in navigation — no header needed here
+        return
 
     elif active_mode == "live":
-        c_brand, c_mode, c_map, c_sar, c_ais, c_drift, c_rep, c_stat, c_cmd = st.columns(
-            [1.9, 1.7, 0.8, 0.8, 0.8, 0.8, 0.9, 2.3, 1.4]
-        )
+        c_brand, c_env, c_ctx, c_cmd = st.columns([2.5, 2.0, 5.0, 1.5])
         with c_brand:
             if st.button("JAL-RAKSHAK", key="hdr_brand_live", help="Return to Home"):
                 st.session_state["app_mode"] = "landing"
                 st.query_params["mode"] = "landing"
                 st.rerun()
-        with c_mode:
-            render_html('<div class="hdr-mode-pill mode-pill-live">LIVE OPERATIONS</div>')
-        with c_map:
-            if st.button("Map", key="hdr_live_map", type="primary" if active_view == "map" else "secondary", use_container_width=True):
-                st.session_state["live_view"] = "map"
-                st.query_params["view"] = "map"
-                st.rerun()
-        with c_sar:
-            if st.button("SAR", key="hdr_live_sar", type="primary" if active_view == "sar" else "secondary", use_container_width=True):
-                st.session_state["live_view"] = "sar"
-                st.query_params["view"] = "sar"
-                st.rerun()
-        with c_ais:
-            if st.button("AIS", key="hdr_live_ais", type="primary" if active_view == "ais" else "secondary", use_container_width=True):
-                st.session_state["live_view"] = "ais"
-                st.query_params["view"] = "ais"
-                st.rerun()
-        with c_drift:
-            if st.button("Drift", key="hdr_live_drift", type="primary" if active_view == "drift" else "secondary", use_container_width=True):
-                st.session_state["live_view"] = "drift"
-                st.query_params["view"] = "drift"
-                st.rerun()
-        with c_rep:
-            if st.button("Reports", key="hdr_live_rep", type="primary" if active_view == "reports" else "secondary", use_container_width=True):
-                st.session_state["live_view"] = "reports"
-                st.query_params["view"] = "reports"
-                st.rerun()
-        with c_stat:
+        with c_env:
+            render_html('<span class="jr-hdr-env jr-hdr-env-live">LIVE OPERATIONS</span>')
+        with c_ctx:
             live_st = st.session_state.get("live_state", {})
             ais_online = live_st.get("provider_connected", False)
-            sar_online = bool(live_st.get("sar_scene")) or bool(live_st.get("pipeline_result"))
-            ais_label = "AIS: LIVE" if ais_online else "AIS: STANDBY"
-            sar_label = "SAR: ACTIVE" if sar_online else "SAR: STANDBY"
-            ais_color = "#10b981" if ais_online else "#64748b"
-            sar_color = "#38bdf8" if sar_online else "#64748b"
+            ais_indicator = '<span style="color:#10b981;">●</span> AIS CONNECTED' if ais_online else '<span style="color:#64748b;">○</span> AIS STANDBY'
+            view_label = (active_view or "map").upper()
             render_html(f"""
-            <div class="hdr-status-compact">
-                <span class="status-dot-green">●</span> <span style="color:#10b981; font-weight:600;">LIVE</span>
-                <span style="color:#475569;">·</span>
-                <span style="color:{ais_color}; font-size:11px;">{ais_label}</span>
-                <span style="color:#475569;">·</span>
-                <span style="color:{sar_color}; font-size:11px;">{sar_label}</span>
+            <div class="jr-hdr-context">
+                <span>{ais_indicator}</span>
+                <span class="jr-hdr-context-sep">·</span>
+                <span>{view_label}</span>
             </div>
             """)
         with c_cmd:
-            render_html('<div class="homepage-cmd-pill" style="cursor:pointer; text-align:center;" onclick="window.parent.__jalOpenCmdPalette && window.parent.__jalOpenCmdPalette();">COMMANDS <kbd>⌘K</kbd></div>')
+            render_html('<div class="jr-hdr-cmd" onclick="window.parent.__jalOpenCmdPalette && window.parent.__jalOpenCmdPalette();">⌘K</div>')
 
     elif active_mode == "demo":
-        c_brand, c_mode, c_sar, c_ais, c_drift, c_rep, c_stat, c_cmd = st.columns(
-            [2.2, 2.0, 1.1, 1.1, 1.1, 1.2, 1.8, 1.5]
-        )
+        c_brand, c_env, c_ctx, c_cmd = st.columns([2.5, 2.5, 4.5, 1.5])
         with c_brand:
             if st.button("JAL-RAKSHAK", key="hdr_brand_demo", help="Return to Home"):
                 st.session_state["app_mode"] = "landing"
                 st.query_params["mode"] = "landing"
                 st.rerun()
-        with c_mode:
-            render_html('<div class="hdr-mode-pill mode-pill-demo">DEMO / SIMULATION</div>')
-        with c_sar:
-            if st.button("SAR", key="hdr_demo_sar", type="primary" if demo_step == 1 else "secondary", use_container_width=True):
-                st.session_state["demo_step"] = 1
-                st.query_params["view"] = "sar"
-                st.rerun()
-        with c_ais:
-            if st.button("AIS", key="hdr_demo_ais", type="primary" if demo_step == 2 else "secondary", use_container_width=True):
-                st.session_state["demo_step"] = 2
-                st.query_params["view"] = "ais"
-                st.rerun()
-        with c_drift:
-            if st.button("Drift", key="hdr_demo_drift", type="primary" if demo_step in (3, 4) else "secondary", use_container_width=True):
-                st.session_state["demo_step"] = 3
-                st.query_params["view"] = "drift"
-                st.rerun()
-        with c_rep:
-            if st.button("Report", key="hdr_demo_rep", type="primary" if demo_step == 5 else "secondary", use_container_width=True):
-                st.session_state["demo_step"] = 5
-                st.query_params["view"] = "report"
-                st.rerun()
-        with c_stat:
-            render_html("""
-            <div class="hdr-status-compact">
-                <span class="status-dot-amber">●</span> <span style="color:#f59e0b; font-weight:600;">DEMO</span>
-                <span style="color:#64748b;">·</span>
-                <span style="color:#94a3b8;">CHENNAI</span>
+        with c_env:
+            render_html('<span class="jr-hdr-env jr-hdr-env-demo">DEMO / SIMULATION</span>')
+        with c_ctx:
+            stage_names = ["SAR", "VALIDATION", "AIS", "SOURCE", "DRIFT", "REPORT"]
+            stage_label = stage_names[demo_step - 1] if 1 <= demo_step <= 6 else f"STAGE {demo_step}"
+            render_html(f"""
+            <div class="jr-hdr-context">
+                <span>CHENNAI</span>
+                <span class="jr-hdr-context-sep">·</span>
+                <span>STAGE {demo_step:02d} {stage_label}</span>
             </div>
             """)
         with c_cmd:
-            render_html('<div class="homepage-cmd-pill" style="cursor:pointer; text-align:center;" onclick="window.parent.__jalOpenCmdPalette && window.parent.__jalOpenCmdPalette();">COMMANDS <kbd>⌘K</kbd></div>')
+            render_html('<div class="jr-hdr-cmd" onclick="window.parent.__jalOpenCmdPalette && window.parent.__jalOpenCmdPalette();">⌘K</div>')
+
+
+def render_live_nav_rail(active_view: str):
+    """
+    Renders contextual navigation rail for Live Operations mode.
+    Horizontal glass rail: MAP ─── SAR ─── AIS ─── DRIFT ─── REPORT
+    """
+    live_stages = [
+        {"id": "map", "code": "01", "label": "MAP"},
+        {"id": "sar", "code": "02", "label": "SAR"},
+        {"id": "ais", "code": "03", "label": "AIS"},
+        {"id": "drift", "code": "04", "label": "DRIFT"},
+        {"id": "reports", "code": "05", "label": "REPORT"},
+    ]
+
+    rail_items = []
+    for i, stage in enumerate(live_stages):
+        is_active = (active_view == stage["id"])
+        state_cls = "jr-rail-stage--active" if is_active else ""
+        rail_items.append(f"""
+        <div class="jr-rail-stage {state_cls}" data-view="{stage['id']}">
+            <span class="jr-rail-num">{stage['code']}</span>
+            <span class="jr-rail-label">{stage['label']}</span>
+            <span class="jr-rail-status"></span>
+        </div>
+        """)
+        if i < len(live_stages) - 1:
+            rail_items.append('<div class="jr-rail-connector"></div>')
+
+    render_html(f'<div class="jr-investigation-rail">{"".join(rail_items)}</div>')
+
+    # Actual clickable navigation via Streamlit buttons
+    cols = st.columns(len(live_stages))
+    clicked_view = None
+    for i, stage in enumerate(live_stages):
+        with cols[i]:
+            is_active = (active_view == stage["id"])
+            btn_type = "primary" if is_active else "secondary"
+            if st.button(stage["label"], key=f"live_rail_{stage['id']}", type=btn_type, use_container_width=True):
+                clicked_view = stage["id"]
+
+    if clicked_view and clicked_view != active_view:
+        st.session_state["live_view"] = clicked_view
+        st.query_params["view"] = clicked_view
+        st.rerun()
+
 
 # Render header on non-landing pages (landing page has its own minimal home header)
 if app_mode != "landing":
     render_unified_header(app_mode, current_view, st.session_state.get("demo_step", 1))
-    render_html("<hr style='border-color:rgba(255,255,255,0.06); margin:8px 0 16px 0;'>")
 
 # ──────────────────────────────────────────────────────────────
 # SIDEBAR OPERATIONS PANEL (CLEAN & NON-DUPLICATED)
@@ -2614,43 +2816,38 @@ active_image = st.session_state.get("active_image_path")
 should_run = st.session_state.pop("trigger_pipeline_run", False) or st.session_state.pop("auto_run", False)
 
 if should_run and active_image and os.path.exists(active_image):
-    with st.status("Executing 11-Node LangGraph Intelligence Pipeline...", expanded=False) as status:
-        stages = [
-            "SAR Preprocessing & Speckle Reduction",
-            "YOLOv8 Segmentation & Mask Extraction",
-            "Classical Consensus & Land Masking Layer",
-            "Geometric & Weathering Characterization",
-            "Ocean Current Euler Hindcast",
-            "AIS Fleet Spatiotemporal Filtering",
-            "Candidate Vessel Association Scoring",
-            "Forward Drift Trajectory Forecast",
-            "Coastal Threat & Shoreline Assessment",
-            "Automated Early Warning Dispatch",
-            "Forensic Incident Dossier Generation",
-        ]
-        progress_bar = st.progress(0)
-        for i, s in enumerate(stages):
-            st.caption(f"Stage {i+1}/11: {s}")
-            progress_bar.progress((i + 1) / len(stages))
-            time.sleep(0.08)
+    render_html("""
+    <div style="background:rgba(10,16,28,0.85); border:1px solid rgba(0,229,255,0.4); border-radius:8px; padding:12px 18px; margin:10px 0 16px 0; display:flex; align-items:center; gap:14px; box-shadow:0 0 20px rgba(0,229,255,0.15);">
+        <div style="width:10px; height:10px; border-radius:50%; background:#00e5ff; box-shadow:0 0 10px #00e5ff;"></div>
+        <div>
+            <div style="font-family:var(--font-mono); font-size:12px; font-weight:700; color:#00e5ff; letter-spacing:0.08em;">PROCESSING INVESTIGATION</div>
+            <div style="font-size:12px; color:#94a3b8; margin-top:2px;">Executing 11-Node LangGraph Intelligence Pipeline (SAR → AIS → Source reconstruction)...</div>
+        </div>
+    </div>
+    """)
+    try:
+        ais_file = st.session_state.get("active_ais_path")
+        pipeline_out = run_pipeline(
+            image_path=active_image,
+            spill_lat=spill_lat,
+            spill_lon=spill_lon,
+            app_mode="demo" if is_demo else "live",
+            ais_file_path=ais_file,
+        )
+        current_state["pipeline_result"] = pipeline_out
+        st.session_state["pipeline_result"] = pipeline_out
+        if is_demo:
+            st.session_state["demo_pipeline_result"] = pipeline_out
+            demo_state["pipeline_result"] = pipeline_out
+    except Exception as e:
+        st.error(f"Pipeline Execution Failed: {e}")
 
-        try:
-            ais_file = st.session_state.get("active_ais_path")
-            pipeline_out = run_pipeline(
-                image_path=active_image,
-                spill_lat=spill_lat,
-                spill_lon=spill_lon,
-                app_mode="demo" if is_demo else "live",
-                ais_file_path=ais_file,
-            )
-            current_state["pipeline_result"] = pipeline_out
-            st.session_state["pipeline_result"] = pipeline_out
-            status.update(label="11-Node Pipeline Execution Complete", state="complete")
-        except Exception as e:
-            status.update(label=f"Execution Failure: {e}", state="error")
-            st.error(f"Pipeline Execution Failed: {e}")
-
-final_state = current_state.get("pipeline_result")
+if is_demo:
+    final_state = current_state.get("pipeline_result") or st.session_state.get("demo_pipeline_result")
+    if final_state and not current_state.get("pipeline_result"):
+        current_state["pipeline_result"] = final_state
+else:
+    final_state = current_state.get("pipeline_result")
 
 
 # =========================================================================
@@ -2679,15 +2876,12 @@ def render_overview_tab(final_state, is_demo, spill_lat, spill_lon):
             cur_mode = cmd_modes[0]
             st.session_state["cmd_map_mode"] = cur_mode
 
-        sel_cmd_mode = render_segmented_layer_control(
+        active_cmd_mode = render_segmented_layer_control(
             layer_items,
             active_layer_id=cur_mode,
             key_prefix="cmd_mode_btn",
+            on_change_state_key="cmd_map_mode",
         )
-        if sel_cmd_mode != cur_mode:
-            st.session_state["cmd_map_mode"] = sel_cmd_mode
-            st.rerun()
-        active_cmd_mode = st.session_state["cmd_map_mode"]
 
 
     with col_mode_stat:
@@ -3100,6 +3294,16 @@ def render_sar_tab(final_state, is_demo, spill_lat, spill_lon, active_image=None
     </div>
     """)
 
+    # Ensure presentation state initialization
+    if "sar_view_mode" not in st.session_state:
+        st.session_state["sar_view_mode"] = "COMPOSITE"
+    if "selected_sar_layer" not in st.session_state:
+        st.session_state["selected_sar_layer"] = "composite"
+    if "sar_workspace_view" not in st.session_state:
+        st.session_state["sar_workspace_view"] = "radar"
+    if "selected_map_layer" not in st.session_state:
+        st.session_state["selected_map_layer"] = "all"
+
     # Main 2-Column Spatial Workspace: LEFT (62% SAR Image / Geospatial Map) & RIGHT (38% Analysis Inspector)
     sar_left_col, sar_right_col = st.columns([13, 8])
 
@@ -3116,9 +3320,9 @@ def render_sar_tab(final_state, is_demo, spill_lat, spill_lon, active_image=None
             key_prefix="sar_ws_mode_ctrl",
             on_change_state_key="sar_workspace_view",
         )
-        st.session_state["sar_workspace_view"] = sel_ws
+        sar_workspace_view = sel_ws
 
-        if sel_ws == "map":
+        if sar_workspace_view == "map":
             fmap_spill = build_investigation_map(
                 final_state,
                 mode="SPILL",
@@ -3141,75 +3345,69 @@ def render_sar_tab(final_state, is_demo, spill_lat, spill_lon, active_image=None
                 key_prefix="sar_vmode_ctrl",
                 on_change_state_key="sar_view_mode",
             )
-            st.session_state["sar_view_mode"] = sel_view_mode
             sar_view_mode = sel_view_mode
-        sar_view_mode = sel_view_mode
 
-        # 2. Specific Signal / Mask Selector (within MASKS or COMPOSITE)
-        if sar_view_mode == "RAW":
-            active_layer_key = "raw"
-            st.session_state["selected_sar_layer"] = "raw"
-            st.session_state["sar_active_layer"] = "raw"
-        else:
-            if sar_view_mode == "COMPOSITE":
-                sar_layers = [
-                    {"id": "composite", "label": "ALL SIGNALS"},
-                    {"id": "yolo", "label": "YOLO"},
-                    {"id": "land", "label": "LAND"},
-                    {"id": "ocean", "label": "OCEAN"},
-                    {"id": "classical", "label": "CLASSICAL"},
-                    {"id": "consensus", "label": "CONSENSUS"},
-                    {"id": "final", "label": "FINAL"},
-                ]
-            else:  # MASKS mode
-                sar_layers = [
-                    {"id": "yolo", "label": "YOLO MASK"},
-                    {"id": "land", "label": "LAND MASK"},
-                    {"id": "ocean", "label": "OCEAN MASK"},
-                    {"id": "classical", "label": "CLASSICAL"},
-                    {"id": "consensus", "label": "CONSENSUS"},
-                    {"id": "final", "label": "FINAL"},
-                ]
-
-            active_layer_key = st.session_state.get("selected_sar_layer") or st.session_state.get("sar_active_layer", "composite")
-            if active_layer_key == "raw" or active_layer_key not in [l["id"] for l in sar_layers]:
-                active_layer_key = sar_layers[0]["id"]
-
-            new_layer = render_segmented_layer_control(
-                sar_layers,
-                active_layer_key,
-                key_prefix="sar_layer_tab",
-                on_change_state_key="selected_sar_layer",
-            )
-            st.session_state["selected_sar_layer"] = new_layer
-            st.session_state["sar_active_layer"] = new_layer
-            active_layer_key = new_layer
-
-        # Generate and render the actual SAR image with zero-flicker memoization
-        sar_img = generate_sar_layer_image(active_image, active_layer_key, final_state, view_mode=sar_view_mode)
-        if sar_img is not None:
-            st.image(sar_img, use_container_width=True)
-        else:
-            render_empty_state("SAR LAYER UNAVAILABLE", "Selected mask layer could not be rendered from active imagery.")
-
-        # Minimalist compact legend
-        render_html("""
-        <div style="display:flex; flex-wrap:wrap; gap:14px; font-family:var(--font-mono); font-size:11px; color:#94a3b8; margin:8px 0 16px 0; padding:8px 14px; background:rgba(10,16,28,0.65); border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
-            <span><span style="color:#ef4444; font-weight:bold;">■</span> DETECTED SLICK</span>
-            <span><span style="color:#38bdf8; font-weight:bold;">■</span> COASTLINE / MARINE DOMAIN</span>
-            <span><span style="color:#d97706; font-weight:bold;">■</span> TERRESTRIAL LAND</span>
-            <span><span style="color:#10b981; font-weight:bold;">■</span> VALIDATED CONSENSUS</span>
-            <span><span style="color:#38bdf8; font-weight:bold;">+</span> CENTROID</span>
-        </div>
-        """)
-
-        # Collapsible 6-Panel Diagnostic Matrix Workspace (Section 5 & 6)
-        with st.expander("DIAGNOSTICS // 6-Panel Multi-Signal Matrix Workspace", expanded=False):
-            diag_img = generate_sar_layer_image(active_image, "diagnostics", final_state)
-            if diag_img is not None:
-                st.image(diag_img, use_container_width=True)
+            # 2. Specific Signal / Mask Selector (within MASKS or COMPOSITE)
+            if sar_view_mode == "RAW":
+                active_layer_key = "raw"
             else:
-                render_empty_state("DIAGNOSTICS PENDING", "Execute analysis to populate multi-algorithm diagnostic panels.")
+                if sar_view_mode == "COMPOSITE":
+                    sar_layers = [
+                        {"id": "composite", "label": "ALL SIGNALS"},
+                        {"id": "yolo", "label": "YOLO"},
+                        {"id": "land", "label": "LAND"},
+                        {"id": "ocean", "label": "OCEAN"},
+                        {"id": "classical", "label": "CLASSICAL"},
+                        {"id": "consensus", "label": "CONSENSUS"},
+                        {"id": "final", "label": "FINAL"},
+                    ]
+                else:  # MASKS mode
+                    sar_layers = [
+                        {"id": "yolo", "label": "YOLO MASK"},
+                        {"id": "land", "label": "LAND MASK"},
+                        {"id": "ocean", "label": "OCEAN MASK"},
+                        {"id": "classical", "label": "CLASSICAL"},
+                        {"id": "consensus", "label": "CONSENSUS"},
+                        {"id": "final", "label": "FINAL"},
+                    ]
+
+                active_layer_key = st.session_state.get("selected_sar_layer") or "composite"
+                if active_layer_key == "raw" or active_layer_key not in [l["id"] for l in sar_layers]:
+                    active_layer_key = sar_layers[0]["id"]
+
+                new_layer = render_segmented_layer_control(
+                    sar_layers,
+                    active_layer_key,
+                    key_prefix="sar_layer_tab",
+                    on_change_state_key="selected_sar_layer",
+                )
+                active_layer_key = new_layer
+
+            # Generate and render the actual SAR image with zero-flicker memoization
+            sar_img = generate_sar_layer_image(active_image, active_layer_key, final_state, view_mode=sar_view_mode)
+            if sar_img is not None:
+                st.image(sar_img, use_container_width=True)
+            else:
+                render_empty_state("SAR LAYER UNAVAILABLE", "Selected mask layer could not be rendered from active imagery.")
+
+            # Minimalist compact legend
+            render_html("""
+            <div style="display:flex; flex-wrap:wrap; gap:14px; font-family:var(--font-mono); font-size:11px; color:#94a3b8; margin:8px 0 16px 0; padding:8px 14px; background:rgba(10,16,28,0.65); border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <span><span style="color:#ef4444; font-weight:bold;">■</span> DETECTED SLICK</span>
+                <span><span style="color:#38bdf8; font-weight:bold;">■</span> COASTLINE / MARINE DOMAIN</span>
+                <span><span style="color:#d97706; font-weight:bold;">■</span> TERRESTRIAL LAND</span>
+                <span><span style="color:#10b981; font-weight:bold;">■</span> VALIDATED CONSENSUS</span>
+                <span><span style="color:#38bdf8; font-weight:bold;">+</span> CENTROID</span>
+            </div>
+            """)
+
+            # Collapsible 6-Panel Diagnostic Matrix Workspace (Section 5 & 6)
+            with st.expander("DIAGNOSTICS // 6-Panel Multi-Signal Matrix Workspace", expanded=False):
+                diag_img = generate_sar_layer_image(active_image, "diagnostics", final_state)
+                if diag_img is not None:
+                    st.image(diag_img, use_container_width=True)
+                else:
+                    render_empty_state("DIAGNOSTICS PENDING", "Execute analysis to populate multi-algorithm diagnostic panels.")
 
     with sar_right_col:
         # Canonical Pipeline Action (Section 10 & 26)
@@ -3839,82 +4037,126 @@ def render_source_stage(final_state, is_demo):
         </div>
         """)
 
-        # Source Timeline Forensics Scrubber (Section 12: T-3, T0, T+6, T+12, T+24)
+        # Source Timeline Forensics Scrubber (Section 12: T-3H, T0, T+6H, T+12H, T+24H)
         time_options = [
-            {"id": "T-3", "label": "T-3h (Origin)"},
-            {"id": "T0", "label": "T0 (Observed)"},
-            {"id": "T+6", "label": "T+6h"},
-            {"id": "T+12", "label": "T+12h"},
-            {"id": "T+24", "label": "T+24h"},
+            {"id": "T-3H", "label": "T-3H (ORIGIN)"},
+            {"id": "T0", "label": "T0 (OBSERVED)"},
+            {"id": "T+6H", "label": "T+6H"},
+            {"id": "T+12H", "label": "T+12H"},
+            {"id": "T+24H", "label": "T+24H"},
         ]
         cur_t = st.session_state.get("selected_source_time", "T0")
+        if cur_t not in [opt["id"] for opt in time_options]:
+            cur_t = "T0"
+
         sel_t = render_segmented_layer_control(
             time_options,
             active_layer_id=cur_t,
             key_prefix="src_timeline_ctrl",
             on_change_state_key="selected_source_time",
         )
-        st.session_state["selected_source_time"] = sel_t
 
-        time_offsets = {"T-3": -180, "T0": 0, "T+6": 360, "T+12": 720, "T+24": 1440}
-        slider_min = time_offsets.get(sel_t, 0)
+        h_sel = parse_time_slice_hours(sel_t)
+        slider_min = int(h_sel * 60)
+
+        w_speed = float(hindcast.get("wind_speed_ms", 6.2))
+        w_bearing = float(hindcast.get("wind_bearing_deg", 135.0))
+        w_factor = float(hindcast.get("wind_factor", 0.03))
+        drift_vec = calculate_drift_vector(c_speed, c_bearing, w_speed, w_bearing, w_factor)
+        net_speed = drift_vec["net_drift_speed_ms"]
+        net_bearing = drift_vec["net_drift_bearing_deg"]
+
+        active_lat, active_lon, active_unc = compute_temporal_position(
+            spill_lat, spill_lon, net_speed, net_bearing, h_sel
+        )
 
         fmap_source = build_investigation_map(
             final_state,
             mode="SOURCE",
             slider_minutes=slider_min,
+            time_slice=sel_t,
             selected_vessel_mmsi=st.session_state.get("selected_vessel_mmsi"),
             is_demo=is_demo,
         )
         st_folium(fmap_source, height=580, use_container_width=True, key="source_folium_map", returned_objects=[])
-        st.caption("Map Features: Observed Spill Footprint • Reverse Advection Backtrack • Probable Source Ellipse • Vessel Trajectories")
+        st.caption("Forensic Map: Reconstructed Origin • Backtrack Corridor • Observed Spill • Forward Horizon • Candidate Track Alignment")
 
     with col_chain:
-        # Compact Side Metrics (Section 21)
+        # Compact Side Metrics dynamically updated for selected time slice (Section 21)
+        if abs(h_sel - (-3.0)) < 0.1:
+            slice_desc = "T-3H (ORIGIN EPOCH)"
+            horizon_desc = "-180 min"
+        elif abs(h_sel) < 0.1:
+            slice_desc = "T0 (OBSERVED EPOCH)"
+            horizon_desc = "0 min"
+        else:
+            slice_desc = f"{sel_t} (FORECAST HORIZON)"
+            horizon_desc = f"{h_sel:+.0f} hrs"
+
         src_metrics_readouts = [
-            {"label": "BACKTRACK WINDOW", "value": "180", "unit": "min", "accent": "cyan", "provenance": "ESTIMATED"},
-            {"label": "PROBABLE ORIGIN", "value": f"{source_lat:.4f}°N, {source_lon:.4f}°E", "accent": "cyan", "provenance": "ESTIMATED"},
-            {"label": "UNCERTAINTY", "value": f"±{unc_km:.1f}", "unit": "km", "accent": "amber", "provenance": "ESTIMATED"},
+            {"label": "ACTIVE HORIZON", "value": horizon_desc, "unit": slice_desc, "accent": "cyan", "provenance": "ESTIMATED"},
+            {"label": "MODELED POSITION", "value": f"{active_lat:.4f}°N, {active_lon:.4f}°E", "accent": "cyan", "provenance": "DERIVED" if h_sel != 0 else "OBSERVED"},
+            {"label": "DISPERSION UNCERTAINTY", "value": f"±{active_unc:.1f}", "unit": "km", "accent": "amber" if active_unc > 3.0 else "green", "provenance": "DERIVED"},
             {"label": "CANDIDATE CPA", "value": f"{c_dist:.1f}", "unit": "km", "accent": "green", "provenance": "DERIVED"},
         ]
         render_compact_metrics(src_metrics_readouts)
 
-        # Featured Candidate Track Panel (Section 11)
-        st.markdown("##### Featured Candidate Track")
+        # Drift ↔ Vessel Association Panel (Phase 8: neutral evidence assessment)
+        st.markdown("##### Drift ↔ Vessel Association")
+
+        if abs(h_sel - (-3.0)) < 0.5:
+            time_match_label = "COINCIDENT (Inferred release window)"
+            time_match_color = "#10b981"
+            prox_label = f"{c_dist:.2f} km to source region"
+            status_text = "Candidate association strengthened: vessel track intersects origin corridor within the inferred release window."
+        elif abs(h_sel) < 0.5:
+            time_match_label = "DOWNSTREAM (Observation epoch)"
+            time_match_color = "#38bdf8"
+            prox_label = "Outbound transit corridor"
+            status_text = "Candidate association consistent: vessel track extends along historical outbound shipping lane."
+        else:
+            time_match_label = f"FORECAST (+{h_sel:.0f}h horizon)"
+            time_match_color = "#94a3b8"
+            prox_label = "Projected dispersion separation"
+            status_text = "Candidate association context: oil dispersion advances eastward away from coastal transit lane."
+
         render_html(f"""
         <div class="glass-panel" style="padding:12px 14px; margin-bottom:12px; font-family:var(--font-mono); font-size:12px;">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                <div><span style="color:#64748b;">VESSEL:</span> <span style="color:#f8fafc; font-weight:600;">{html.escape(str(top_name))}</span></div>
+                <div><span style="color:#64748b;">CANDIDATE TARGET:</span> <span style="color:#f8fafc; font-weight:600;">{html.escape(str(top_name))}</span></div>
                 <div><span style="color:#64748b;">MMSI:</span> <span style="color:#00e5ff;">{html.escape(str(top_mmsi))}</span></div>
-                <div><span style="color:#64748b;">TIME:</span> <span style="color:#94a3b8;">Coincident (T-168m)</span></div>
-                <div><span style="color:#64748b;">DISTANCE:</span> <span style="color:#f59e0b;">{c_dist:.2f} km</span></div>
-                <div><span style="color:#64748b;">SOURCE ALIGNMENT:</span> <span style="color:#10b981;">Origin Intersecting</span></div>
-                <div><span style="color:#64748b;">TRAJECTORY:</span> <span style="color:#38bdf8;">Advection Consistent</span></div>
+                <div><span style="color:#64748b;">TEMPORAL MATCH:</span> <span style="color:{time_match_color};">{time_match_label}</span></div>
+                <div><span style="color:#64748b;">SPATIAL PROXIMITY:</span> <span style="color:#f59e0b;">{prox_label}</span></div>
+                <div><span style="color:#64748b;">TRACK CONSISTENCY:</span> <span style="color:#10b981;">Transit corridor aligned</span></div>
+                <div><span style="color:#64748b;">DRIFT CONSISTENCY:</span> <span style="color:#38bdf8;">Euler advection consistent</span></div>
+                <div style="grid-column:1 / -1; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06); font-size:11px; color:#cbd5e1; line-height:1.4;">
+                    {status_text}
+                </div>
             </div>
         </div>
         """)
 
-        # Analytical Evidence Chain (Section 13)
+        # Analytical Evidence Chain dynamically synchronized with time slice (Section 13)
         st.markdown("##### Analytical Evidence Chain")
         chain_nodes = [
             {
-                "title": "OBSERVED SPILL FOOTPRINT",
-                "desc": f"Sentinel-1A SAR radar pass acquired at T=0. 1.77 km² confirmed slick at {spill_lat:.4f}°N, {spill_lon:.4f}°E.",
+                "title": "OBSERVED SPILL FOOTPRINT (T0)",
+                "desc": f"Sentinel-1A SAR radar pass acquired at T=0. Confirmed slick centroid at {spill_lat:.4f}°N, {spill_lon:.4f}°E.",
                 "provenance": "OBSERVED",
             },
             {
-                "title": "HYDRODYNAMIC BACKTRACK",
-                "desc": f"Euler advection reversed 180 min using INCOIS surface currents ({c_speed:.2f} m/s @ {c_bearing:.0f}°) and 3% wind leeway.",
+                "title": "HYDRODYNAMIC BACKTRACK (T-3H)",
+                "desc": f"Euler advection reversed 180 min to {source_lat:.4f}°N, {source_lon:.4f}°E using surface currents ({c_speed:.2f} m/s @ {c_bearing:.0f}°) and 3% wind leeway.",
                 "provenance": "ESTIMATED",
             },
             {
-                "title": "PROBABLE SOURCE REGION",
-                "desc": f"Origin zone located at {source_lat:.4f}°N, {source_lon:.4f}°E with ±{unc_km:.1f} km spatial uncertainty radius.",
+                "title": f"ACTIVE TIME SLICE ({sel_t})",
+                "desc": f"Modeled slick centroid at {active_lat:.4f}°N, {active_lon:.4f}°E with ±{active_unc:.1f} km spatial uncertainty boundary.",
                 "provenance": "ESTIMATED",
             },
             {
-                "title": "VESSEL TRACK INTERSECTION",
-                "desc": f"Candidate vessel {top_name} (MMSI: {top_mmsi}) intersects origin corridor coincident with inferred release window.",
+                "title": "CANDIDATE VESSEL CORRELATION",
+                "desc": f"Target {top_name} (MMSI: {top_mmsi}) track intersects backtracked origin region coincident with the inferred release window.",
                 "provenance": "DERIVED",
             },
         ]
@@ -4685,13 +4927,19 @@ def render_live_operations_screen(final_state, is_demo, spill_lat, spill_lon, ac
 # =========================================================================
 def render_demo_screen(final_state, is_demo, spill_lat, spill_lon, active_image):
     if not final_state:
-        st.info("Initializing Chennai Incident intelligence pipeline...")
-        st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
-        st.session_state["spill_lat"] = CHENNAI_SCENARIO.spill_lat
-        st.session_state["spill_lon"] = CHENNAI_SCENARIO.spill_lon
-        st.session_state["current_scene_name"] = "Chennai Port Outer Anchorage (512x512)"
-        st.session_state["trigger_pipeline_run"] = True
-        st.rerun()
+        # Check if result is already cached in session_state before triggering a rerun
+        cached_result = st.session_state.get("demo_pipeline_result") or st.session_state.get("demo_state", {}).get("pipeline_result")
+        if cached_result:
+            final_state = cached_result
+            if "demo_state" in st.session_state:
+                st.session_state["demo_state"]["pipeline_result"] = cached_result
+        else:
+            st.session_state["active_image_path"] = get_or_create_demo_sar_patch()
+            st.session_state["spill_lat"] = CHENNAI_SCENARIO.spill_lat
+            st.session_state["spill_lon"] = CHENNAI_SCENARIO.spill_lon
+            st.session_state["current_scene_name"] = "Chennai Port Outer Anchorage (512x512)"
+            st.session_state["trigger_pipeline_run"] = True
+            st.rerun()
 
     if "demo_step" not in st.session_state:
         st.session_state["demo_step"] = 1
@@ -4761,7 +5009,12 @@ def render_demo_screen(final_state, is_demo, spill_lat, spill_lon, active_image)
 # ──────────────────────────────────────────────────────────────
 # MAIN APPLICATION ROUTING CONTROLLER
 # ──────────────────────────────────────────────────────────────
-final_state = current_state.get("pipeline_result")
+if is_demo:
+    final_state = current_state.get("pipeline_result") or st.session_state.get("demo_pipeline_result")
+    if final_state and not current_state.get("pipeline_result"):
+        current_state["pipeline_result"] = final_state
+else:
+    final_state = current_state.get("pipeline_result")
 active_image = st.session_state.get("active_image_path")
 
 if app_mode == "landing":
