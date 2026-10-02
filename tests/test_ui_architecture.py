@@ -320,3 +320,25 @@ class TestPhase1StateAndInteraction:
         assert "on_change_state_key" in sig.parameters
 
 
+class TestPhase2SARVisualization:
+    """Validates Phase 2 SAR view modes (RAW, MASKS, COMPOSITE) and layer rendering."""
+
+    def test_sar_view_modes_defined_in_app(self):
+        """RAW, MASKS, and COMPOSITE modes must be available in app.py."""
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        assert '{"id": "COMPOSITE", "label": "COMPOSITE"}' in content
+        assert '{"id": "MASKS", "label": "MASKS"}' in content
+        assert '{"id": "RAW", "label": "RAW"}' in content
+
+    def test_generate_sar_layer_image_supports_view_modes(self):
+        """generate_sar_layer_image must accept view_mode parameter."""
+        import app
+        import inspect
+        sig = inspect.signature(app.generate_sar_layer_image)
+        assert "view_mode" in sig.parameters
+        assert sig.parameters["view_mode"].default == "COMPOSITE"
+
+
+

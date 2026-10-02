@@ -383,10 +383,11 @@ def render_candidate_vessel_card(
     vessel: Dict[str, Any],
     is_selected: bool = False,
     key: Optional[str] = None,
+    why_evidence: Optional[List[str]] = None,
 ) -> bool:
     """
     Renders compact candidate evidence card:
-    #1 MV EXAMPLE
+    01 MV EXAMPLE
     ASSOCIATION: 82%
     DISTANCE: 4.2 km
     TIME ALIGNMENT: Strong
@@ -407,7 +408,18 @@ def render_candidate_vessel_card(
     behavior = html.escape(str(vessel.get("behavior", "Transit")))
 
     selected_class = "candidate-card-selected" if is_selected else ""
-    rank_str = f"#{rank}"
+    rank_str = f"{rank:02d}"
+
+    why_html = ""
+    why_list = why_evidence or vessel.get("evidence_summary") or []
+    if why_list:
+        items = "".join([f"<li>{html.escape(str(ev))}</li>" for ev in why_list])
+        why_html = f"""
+        <details class="cand-why-details">
+            <summary class="cand-why-summary">Evidence Breakdown ▾</summary>
+            <ul class="cand-why-list">{items}</ul>
+        </details>
+        """
 
     card_markup = f"""
     <div class="candidate-evidence-card {selected_class}">
@@ -440,6 +452,7 @@ def render_candidate_vessel_card(
                 <span class="cand-ev-val">{behavior}</span>
             </div>
         </div>
+        {why_html}
     </div>
     """
     render_html(card_markup)

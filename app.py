@@ -13,6 +13,7 @@ import sys
 import subprocess
 import time
 import json
+import html
 import math
 import numpy as np
 from datetime import datetime, timezone, timedelta
@@ -1212,16 +1213,22 @@ def render_status_pill(status: str) -> str:
     return f'<span class="status-badge {css}">{icon} {status}</span>'
 
 
-def generate_sar_layer_image(image_path: str, layer: str, final_state: dict):
+def generate_sar_layer_image(image_path: str, layer: str, final_state: dict, view_mode: str = "COMPOSITE"):
     """
     Generate requested SAR visual layer on demand with zero-flicker memoization caching:
-    - composite: crisp detection overlay with contours, bounding box, centroid crosshairs
-    - raw: original radar backscatter amplitude
-    - yolo: YOLO segmentation mask in magenta/red over dark base
-    - landmask: terrestrial land in ochre/brown, ocean in navy, cyan coastline
-    - classical: classical K-Means and adaptive threshold extraction
-    - final: final consensus mask (green validated slick or rejected stamp)
-    - diagnostics: full 6-panel composite matrix
+    - view_mode:
+        - RAW: actual SAR radar backscatter amplitude image
+        - MASKS: clean diagnostic mask view on dark naval background
+        - COMPOSITE: actual SAR image + selected overlays
+    - layer:
+        - composite: crisp detection overlay with contours, bounding box, centroid crosshairs
+        - raw: original radar backscatter amplitude
+        - yolo: YOLO segmentation mask
+        - land / landmask: terrestrial land and coastline
+        - ocean: ocean marine domain
+        - classical: classical K-Means and adaptive threshold extraction
+        - final / consensus: validated consensus mask
+        - diagnostics: full 6-panel composite matrix
     """
     if not image_path or not os.path.exists(image_path):
         return None
@@ -1234,7 +1241,7 @@ def generate_sar_layer_image(image_path: str, layer: str, final_state: dict):
     if not all_coords and final_state and final_state.get("spill_coords"):
         all_coords = [final_state["spill_coords"]]
     val_status_str = final_state.get("validation_status", "PROBABLE") if final_state else "PROBABLE"
-    cache_key = f"{image_path}:{layer}:{len(all_coords)}:{val_status_str}"
+    cache_key = f"{image_path}:{layer}:{view_mode}:{len(all_coords)}:{val_status_str}"
 
     if cache_key in st.session_state["sar_layer_cache"]:
         return st.session_state["sar_layer_cache"][cache_key]
@@ -1244,15 +1251,15 @@ def generate_sar_layer_image(image_path: str, layer: str, final_state: dict):
         return None
     h, w = img_gray.shape[:2]
 
-    # Build YOLO mask from actual pipeline coordinates
+    # Build YOLO mask from actual pipeline coordinates (never fake rectangular overlays)
     yolo_mask = np.zeros((h, w), dtype=np.uint8)
     for poly in all_coords:
         if poly and len(poly) >= 3:
             pts = np.array(poly, dtype=np.int32).reshape((-1, 1, 2))
             cv2.fillPoly(yolo_mask, [pts], 255)
 
-    # 1. RAW SAR IMAGE
-    if layer == "raw":
+    # 1. RAW SAR IMAGE (pure radar backscatter amplitude)
+    if layer == "raw" or view_mode == "RAW":
         out = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2RGB)
         st.session_state["sar_layer_cache"][cache_key] = out
         return out
@@ -1270,79 +1277,121 @@ def generate_sar_layer_image(image_path: str, layer: str, final_state: dict):
 
     # Base RGB image preserving original radar backscatter
     base_rgb = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2RGB)
+    dark_canvas = np.zeros((h, w, 3), dtype=np.uint8)
+    is_mask_mode = (view_mode == "MASKS")
 
-    # 2. LAND MASK (Translucent ochre overlay with cyan coastline, preserving SAR texture)
+    # 2. LAND MASK (Ochre landmass with cyan coastline)
     if layer in ("landmask", "land"):
-        overlay = base_rgb.copy()
-        overlay[land_mask > 0] = [180, 120, 40]  # Ochre landmass
-        out = cv2.addWeighted(overlay, 0.40, base_rgb, 0.60, 0)
-        contours_l, _ = cv2.findContours(land_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        cv2.drawContours(out, contours_l, -1, (56, 189, 248), 2)  # Cyan coastline
-        st.session_state["sar_layer_cache"][cache_key] = out
-        return out
-
-    # 3. OCEAN-ONLY MASK (Isolate marine domain, dim terrestrial land)
-    if layer == "ocean":
-        out = base_rgb.copy()
-        # Dim land to emphasize ocean
-        out[land_mask > 0] = (out[land_mask > 0] * 0.25).astype(np.uint8)
-        # Subtle cyan tint on ocean
-        overlay = out.copy()
-        overlay[sea_mask > 0] = [14, 165, 233]
-        out = cv2.addWeighted(overlay, 0.15, out, 0.85, 0)
-        contours_l, _ = cv2.findContours(land_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        cv2.drawContours(out, contours_l, -1, (56, 189, 248), 1)
-        st.session_state["sar_layer_cache"][cache_key] = out
-        return out
-
-    # 4. YOLO DETECTION MASK (Translucent magenta/red with yellow contours on SAR)
-    if layer == "yolo":
-        overlay = base_rgb.copy()
-        if np.sum(yolo_mask > 0) > 0:
-            overlay[yolo_mask > 0] = [255, 50, 80]
-            out = cv2.addWeighted(overlay, 0.45, base_rgb, 0.55, 0)
-            contours_y, _ = cv2.findContours(yolo_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(out, contours_y, -1, (255, 220, 100), 2)
+        if is_mask_mode:
+            out = dark_canvas.copy()
+            out[land_mask > 0] = [180, 120, 40]
+            contours_l, _ = cv2.findContours(land_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(out, contours_l, -1, (56, 189, 248), 2)
         else:
-            out = base_rgb
+            overlay = base_rgb.copy()
+            overlay[land_mask > 0] = [180, 120, 40]
+            out = cv2.addWeighted(overlay, 0.40, base_rgb, 0.60, 0)
+            contours_l, _ = cv2.findContours(land_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(out, contours_l, -1, (56, 189, 248), 2)
         st.session_state["sar_layer_cache"][cache_key] = out
         return out
 
-    # 5. CLASSICAL DETECTION MASK (Translucent cyan overlay on SAR)
+    # 3. OCEAN-ONLY MASK (Isolate marine domain)
+    if layer == "ocean":
+        if is_mask_mode:
+            out = dark_canvas.copy()
+            out[sea_mask > 0] = [14, 165, 233]
+            contours_l, _ = cv2.findContours(land_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(out, contours_l, -1, (56, 189, 248), 1)
+        else:
+            out = base_rgb.copy()
+            out[land_mask > 0] = (out[land_mask > 0] * 0.25).astype(np.uint8)
+            overlay = out.copy()
+            overlay[sea_mask > 0] = [14, 165, 233]
+            out = cv2.addWeighted(overlay, 0.15, out, 0.85, 0)
+            contours_l, _ = cv2.findContours(land_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(out, contours_l, -1, (56, 189, 248), 1)
+        st.session_state["sar_layer_cache"][cache_key] = out
+        return out
+
+    # 4. YOLO DETECTION MASK (Magenta/red slick with yellow contours)
+    if layer == "yolo":
+        if is_mask_mode:
+            out = dark_canvas.copy()
+            if np.sum(yolo_mask > 0) > 0:
+                out[yolo_mask > 0] = [255, 50, 80]
+                contours_y, _ = cv2.findContours(yolo_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(out, contours_y, -1, (255, 220, 100), 2)
+        else:
+            overlay = base_rgb.copy()
+            if np.sum(yolo_mask > 0) > 0:
+                overlay[yolo_mask > 0] = [255, 50, 80]
+                out = cv2.addWeighted(overlay, 0.45, base_rgb, 0.55, 0)
+                contours_y, _ = cv2.findContours(yolo_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(out, contours_y, -1, (255, 220, 100), 2)
+            else:
+                out = base_rgb
+        st.session_state["sar_layer_cache"][cache_key] = out
+        return out
+
+    # 5. CLASSICAL DETECTION MASK (Cyan overlay)
     if layer == "classical":
         class_m = res.classical_mask if res and hasattr(res, "classical_mask") else (
             res.validated_mask if res and hasattr(res, "validated_mask") else yolo_mask
         )
-        overlay = base_rgb.copy()
-        if np.sum(class_m > 0) > 0:
-            overlay[class_m > 0] = [0, 220, 255]
-            out = cv2.addWeighted(overlay, 0.45, base_rgb, 0.55, 0)
-            contours_c, _ = cv2.findContours(class_m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(out, contours_c, -1, (255, 255, 255), 1)
+        if is_mask_mode:
+            out = dark_canvas.copy()
+            if np.sum(class_m > 0) > 0:
+                out[class_m > 0] = [0, 220, 255]
+                contours_c, _ = cv2.findContours(class_m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(out, contours_c, -1, (255, 255, 255), 2)
         else:
-            out = base_rgb
+            overlay = base_rgb.copy()
+            if np.sum(class_m > 0) > 0:
+                overlay[class_m > 0] = [0, 220, 255]
+                out = cv2.addWeighted(overlay, 0.45, base_rgb, 0.55, 0)
+                contours_c, _ = cv2.findContours(class_m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(out, contours_c, -1, (255, 255, 255), 1)
+            else:
+                out = base_rgb
         st.session_state["sar_layer_cache"][cache_key] = out
         return out
 
-    # 6. CONSENSUS / VALIDATED MASK (Translucent green/emerald overlay on SAR)
+    # 6. CONSENSUS / VALIDATED FINAL MASK (Emerald green with centroid marker)
     if layer in ("consensus", "final"):
         val_m = res.validated_mask if res and hasattr(res, "validated_mask") else np.zeros((h, w), dtype=np.uint8)
-        overlay = base_rgb.copy()
-        if np.sum(val_m > 0) > 0 and (final_state and final_state.get("validation_status") != "REJECTED"):
-            overlay[val_m > 0] = [16, 185, 129]  # Emerald green
-            out = cv2.addWeighted(overlay, 0.50, base_rgb, 0.50, 0)
-            contours_v, _ = cv2.findContours(val_m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(out, contours_v, -1, (255, 255, 255), 2)
-            for c in contours_v:
-                M = cv2.moments(c)
-                if M["m00"] > 0:
-                    cx = int(M["m10"] / M["m00"])
-                    cy = int(M["m01"] / M["m00"])
-                    cv2.drawMarker(out, (cx, cy), (56, 189, 248), cv2.MARKER_CROSS, 16, 2)
+        if is_mask_mode:
+            out = dark_canvas.copy()
+            if np.sum(val_m > 0) > 0 and (final_state and final_state.get("validation_status") != "REJECTED"):
+                out[val_m > 0] = [16, 185, 129]
+                contours_v, _ = cv2.findContours(val_m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(out, contours_v, -1, (255, 255, 255), 2)
+                for c in contours_v:
+                    M = cv2.moments(c)
+                    if M["m00"] > 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                        cv2.drawMarker(out, (cx, cy), (56, 189, 248), cv2.MARKER_CROSS, 16, 2)
+            else:
+                cv2.putText(out, "NO VALIDATED SPILL / REJECTED", (max(10, w // 8), h // 2),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (239, 68, 68), 2)
         else:
-            out = base_rgb.copy()
-            cv2.putText(out, "NO VALIDATED SPILL / REJECTED", (max(10, w // 8), h // 2),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (239, 68, 68), 2)
+            overlay = base_rgb.copy()
+            if np.sum(val_m > 0) > 0 and (final_state and final_state.get("validation_status") != "REJECTED"):
+                overlay[val_m > 0] = [16, 185, 129]
+                out = cv2.addWeighted(overlay, 0.50, base_rgb, 0.50, 0)
+                contours_v, _ = cv2.findContours(val_m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(out, contours_v, -1, (255, 255, 255), 2)
+                for c in contours_v:
+                    M = cv2.moments(c)
+                    if M["m00"] > 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                        cv2.drawMarker(out, (cx, cy), (56, 189, 248), cv2.MARKER_CROSS, 16, 2)
+            else:
+                out = base_rgb.copy()
+                cv2.putText(out, "NO VALIDATED SPILL / REJECTED", (max(10, w // 8), h // 2),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (239, 68, 68), 2)
         st.session_state["sar_layer_cache"][cache_key] = out
         return out
 
@@ -1360,27 +1409,41 @@ def generate_sar_layer_image(image_path: str, layer: str, final_state: dict):
         st.session_state["sar_layer_cache"][cache_key] = out
         return out
 
-    # Default: COMPOSITE OVERLAY (Transparent slick + land boundary + crosshairs on SAR)
-    vis = base_rgb.copy()
-    # Highlight land with subtle coastline
-    contours_l, _ = cv2.findContours(land_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(vis, contours_l, -1, (56, 189, 248), 1)
-
-    # Highlight slick
-    if np.sum(yolo_mask > 0) > 0:
-        overlay = vis.copy()
-        overlay[yolo_mask > 0] = [239, 68, 68]
-        vis = cv2.addWeighted(overlay, 0.40, vis, 0.60, 0)
-        contours, _ = cv2.findContours(yolo_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        cv2.drawContours(vis, contours, -1, (56, 189, 248), 2)
-        for c in contours:
-            x, y, bw, bh = cv2.boundingRect(c)
-            cv2.rectangle(vis, (x, y), (x + bw, y + bh), (56, 189, 248), 1)
-            M = cv2.moments(c)
-            if M["m00"] > 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                cv2.drawMarker(vis, (cx, cy), (0, 229, 255), cv2.MARKER_CROSS, 16, 2)
+    # Default: COMPOSITE OVERLAY
+    if is_mask_mode:
+        vis = dark_canvas.copy()
+        contours_l, _ = cv2.findContours(land_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.drawContours(vis, contours_l, -1, (56, 189, 248), 1)
+        if np.sum(yolo_mask > 0) > 0:
+            vis[yolo_mask > 0] = [239, 68, 68]
+            contours, _ = cv2.findContours(yolo_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(vis, contours, -1, (56, 189, 248), 2)
+            for c in contours:
+                x, y, bw, bh = cv2.boundingRect(c)
+                cv2.rectangle(vis, (x, y), (x + bw, y + bh), (56, 189, 248), 1)
+                M = cv2.moments(c)
+                if M["m00"] > 0:
+                    cx = int(M["m10"] / M["m00"])
+                    cy = int(M["m01"] / M["m00"])
+                    cv2.drawMarker(vis, (cx, cy), (0, 229, 255), cv2.MARKER_CROSS, 16, 2)
+    else:
+        vis = base_rgb.copy()
+        contours_l, _ = cv2.findContours(land_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.drawContours(vis, contours_l, -1, (56, 189, 248), 1)
+        if np.sum(yolo_mask > 0) > 0:
+            overlay = vis.copy()
+            overlay[yolo_mask > 0] = [239, 68, 68]
+            vis = cv2.addWeighted(overlay, 0.40, vis, 0.60, 0)
+            contours, _ = cv2.findContours(yolo_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(vis, contours, -1, (56, 189, 248), 2)
+            for c in contours:
+                x, y, bw, bh = cv2.boundingRect(c)
+                cv2.rectangle(vis, (x, y), (x + bw, y + bh), (56, 189, 248), 1)
+                M = cv2.moments(c)
+                if M["m00"] > 0:
+                    cx = int(M["m10"] / M["m00"])
+                    cy = int(M["m01"] / M["m00"])
+                    cv2.drawMarker(vis, (cx, cy), (0, 229, 255), cv2.MARKER_CROSS, 16, 2)
     out = vis
     st.session_state["sar_layer_cache"][cache_key] = out
     return out
@@ -1870,12 +1933,12 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
 
     else:
         # DEMO SCENARIO LAYERS
-        fg_spill = folium.FeatureGroup(name="[DEMO] Detected Spill Slick", show=(mode in ["ALL", "SPILL", "RISK"]))
+        fg_spill = folium.FeatureGroup(name="[DEMO] Detected Spill Slick", show=(mode in ["ALL", "SPILL", "SOURCE", "BACKTRACK", "RISK"]))
         fg_source = folium.FeatureGroup(name="[DEMO] Origin Reconstruction", show=(mode in ["ALL", "SOURCE", "BACKTRACK"]))
         fg_hindcast = folium.FeatureGroup(name="[DEMO] Backtrack Trajectory", show=(mode in ["ALL", "BACKTRACK", "SOURCE"]))
         fg_forecast = folium.FeatureGroup(name="[DEMO] Forward Drift Forecast", show=(mode in ["ALL", "FORWARD DRIFT", "RISK"]))
         fg_ais = folium.FeatureGroup(name="[DEMO] Fleet AIS Tracks", show=(mode in ["ALL", "AIS", "SOURCE"]))
-        fg_vessels = folium.FeatureGroup(name="[DEMO] Vessel Positions", show=(mode in ["ALL", "AIS"]))
+        fg_vessels = folium.FeatureGroup(name="[DEMO] Vessel Positions", show=(mode in ["ALL", "AIS", "SOURCE"]))
         fg_coastal = folium.FeatureGroup(name="[DEMO] Coastal Protection Assets", show=(mode in ["ALL", "RISK"]))
 
         # 1. Spill Polygon
@@ -1987,6 +2050,31 @@ def build_investigation_map(state=None, slider_minutes=0, selected_vessel_mmsi=N
             score = rank_info.get("score", 0)
             vessel_name = recs[0].get("name", mmsi) if isinstance(recs[0], dict) else mmsi
             v_pos = recs[0]
+
+            # Render track polyline (Section 11 & 16: candidate emphasized, unrelated muted)
+            track_coords = [[p["lat"], p["lon"]] for p in recs if isinstance(p, dict) and "lat" in p and "lon" in p]
+            if len(track_coords) >= 2:
+                is_candidate = (score > 50 or is_selected)
+                if is_selected:
+                    t_color = "#00e5ff"
+                    t_weight = 3.5
+                    t_dash = None
+                elif is_candidate:
+                    t_color = "#38bdf8"
+                    t_weight = 2.8
+                    t_dash = None
+                else:
+                    t_color = "rgba(100, 116, 139, 0.45)"
+                    t_weight = 1.5
+                    t_dash = "4 4"
+
+                folium.PolyLine(
+                    locations=track_coords,
+                    color=t_color,
+                    weight=t_weight,
+                    dash_array=t_dash,
+                    tooltip=f"Track for {vessel_name} (MMSI: {mmsi})",
+                ).add_to(fg_ais)
 
             if is_selected:
                 folium.CircleMarker(
@@ -2998,64 +3086,107 @@ def render_sar_tab(final_state, is_demo, spill_lat, spill_lon, active_image=None
     land_frac = val_res.get("method_results", {}).get("land_mask", {}).get("overlap_fraction", 0.0)
     spill_detected_flag = final_state.get("spill_detected", True) if final_state else True
 
-    # Header banner (Stage 01 in Demo, or clean header in Live)
-    if is_demo:
-        stage_metrics = [
-            {"label": "AREA", "value": f"{area_val:.2f}", "unit": "km²", "accent": "cyan"},
-            {"label": "CONFIDENCE", "value": f"{y_conf:.1%}", "accent": "cyan"},
-            {"label": "VALIDATION", "value": "CONSENSUS", "accent": "green" if spill_detected_flag else "amber"},
-            {"label": "SENSOR", "value": "Sentinel-1A", "accent": "default"},
-        ]
-        render_stage_banner(
-            stage_num=1,
-            title="SAR Detection & Layer Inspection",
-            purpose="Sentinel-1 C-band synthetic aperture radar acquisition, multi-layer masks, and consensus quorum.",
-            metrics=stage_metrics,
-            provenance="OBSERVED",
-        )
-    else:
-        render_html(f"""
-        <div class="stage-header-box">
-            <div class="stage-header-meta">
-                <span class="stage-code">RADAR SURVEILLANCE // ACTIVE SWATH</span>
-                {render_provenance_badge('OBSERVED')}
-            </div>
-            <div class="stage-title-row">
-                <h2 class="stage-headline">SAR Detection & Consensus Analysis</h2>
-            </div>
-            <p class="stage-purpose-line">Real Sentinel-1 C-band radar swath over maritime domain.</p>
+    # Clean Stage Header (Section 19 & 20)
+    render_html(f"""
+    <div class="stage-header-box">
+        <div class="stage-header-meta">
+            <span class="stage-code">01  DETECTION</span>
+            {render_provenance_badge('OBSERVED')}
         </div>
-        """)
+        <div class="stage-title-row">
+            <h2 class="stage-headline">Observed incident</h2>
+        </div>
+        <p class="stage-purpose-line">Satellite radar backscatter and validated spill boundary.</p>
+    </div>
+    """)
 
-    # Main 2-Column Workspace: LEFT (60% SAR Image Viewer) & RIGHT (40% Analysis Inspector)
-    sar_left_col, sar_right_col = st.columns([12, 9])
+    # Main 2-Column Spatial Workspace: LEFT (62% SAR Image / Geospatial Map) & RIGHT (38% Analysis Inspector)
+    sar_left_col, sar_right_col = st.columns([13, 8])
 
     with sar_left_col:
-        # Segmented Layer Selector (Section 7 & 9)
-        sar_layers = [
-            {"id": "composite", "label": "COMPOSITE"},
-            {"id": "raw", "label": "RAW"},
-            {"id": "yolo", "label": "YOLO"},
-            {"id": "land", "label": "LAND"},
-            {"id": "ocean", "label": "OCEAN"},
-            {"id": "classical", "label": "CLASSICAL"},
-            {"id": "consensus", "label": "CONSENSUS"},
-            {"id": "final", "label": "FINAL"},
+        # Spatial Workspace Switcher: RADAR BACKSCATTER vs GEOSPATIAL MAP (Section 6)
+        ws_options = [
+            {"id": "radar", "label": "RADAR BACKSCATTER"},
+            {"id": "map", "label": "GEOSPATIAL MAP"},
         ]
-
-        active_layer_key = st.session_state.get("selected_sar_layer") or st.session_state.get("sar_active_layer", "composite")
-        new_layer = render_segmented_layer_control(
-            sar_layers,
-            active_layer_key,
-            key_prefix="sar_layer_tab",
-            on_change_state_key="selected_sar_layer",
+        cur_ws = st.session_state.get("sar_workspace_view", "radar")
+        sel_ws = render_segmented_layer_control(
+            ws_options,
+            active_layer_id=cur_ws,
+            key_prefix="sar_ws_mode_ctrl",
+            on_change_state_key="sar_workspace_view",
         )
-        st.session_state["selected_sar_layer"] = new_layer
-        st.session_state["sar_active_layer"] = new_layer
-        active_layer_key = new_layer
+        st.session_state["sar_workspace_view"] = sel_ws
 
-        # Generate and render the actual SAR image
-        sar_img = generate_sar_layer_image(active_image, active_layer_key, final_state)
+        if sel_ws == "map":
+            fmap_spill = build_investigation_map(
+                final_state,
+                mode="SPILL",
+                selected_vessel_mmsi=st.session_state.get("selected_vessel_mmsi"),
+                is_demo=is_demo,
+            )
+            st_folium(fmap_spill, height=540, use_container_width=True, key="sar_spill_folium_map", returned_objects=[])
+            st.caption("Spatial Layers: Validated Spill Boundary • Origin Corridor • Coastline Geometry • Maritime Domain")
+        else:
+            # 1. Visualization Mode Selector: RAW / MASKS / COMPOSITE (Section 9)
+            view_modes = [
+                {"id": "COMPOSITE", "label": "COMPOSITE"},
+                {"id": "MASKS", "label": "MASKS"},
+                {"id": "RAW", "label": "RAW"},
+            ]
+            cur_view_mode = st.session_state.get("sar_view_mode", "COMPOSITE")
+            sel_view_mode = render_segmented_layer_control(
+                view_modes,
+                active_layer_id=cur_view_mode,
+                key_prefix="sar_vmode_ctrl",
+                on_change_state_key="sar_view_mode",
+            )
+            st.session_state["sar_view_mode"] = sel_view_mode
+            sar_view_mode = sel_view_mode
+        sar_view_mode = sel_view_mode
+
+        # 2. Specific Signal / Mask Selector (within MASKS or COMPOSITE)
+        if sar_view_mode == "RAW":
+            active_layer_key = "raw"
+            st.session_state["selected_sar_layer"] = "raw"
+            st.session_state["sar_active_layer"] = "raw"
+        else:
+            if sar_view_mode == "COMPOSITE":
+                sar_layers = [
+                    {"id": "composite", "label": "ALL SIGNALS"},
+                    {"id": "yolo", "label": "YOLO"},
+                    {"id": "land", "label": "LAND"},
+                    {"id": "ocean", "label": "OCEAN"},
+                    {"id": "classical", "label": "CLASSICAL"},
+                    {"id": "consensus", "label": "CONSENSUS"},
+                    {"id": "final", "label": "FINAL"},
+                ]
+            else:  # MASKS mode
+                sar_layers = [
+                    {"id": "yolo", "label": "YOLO MASK"},
+                    {"id": "land", "label": "LAND MASK"},
+                    {"id": "ocean", "label": "OCEAN MASK"},
+                    {"id": "classical", "label": "CLASSICAL"},
+                    {"id": "consensus", "label": "CONSENSUS"},
+                    {"id": "final", "label": "FINAL"},
+                ]
+
+            active_layer_key = st.session_state.get("selected_sar_layer") or st.session_state.get("sar_active_layer", "composite")
+            if active_layer_key == "raw" or active_layer_key not in [l["id"] for l in sar_layers]:
+                active_layer_key = sar_layers[0]["id"]
+
+            new_layer = render_segmented_layer_control(
+                sar_layers,
+                active_layer_key,
+                key_prefix="sar_layer_tab",
+                on_change_state_key="selected_sar_layer",
+            )
+            st.session_state["selected_sar_layer"] = new_layer
+            st.session_state["sar_active_layer"] = new_layer
+            active_layer_key = new_layer
+
+        # Generate and render the actual SAR image with zero-flicker memoization
+        sar_img = generate_sar_layer_image(active_image, active_layer_key, final_state, view_mode=sar_view_mode)
         if sar_img is not None:
             st.image(sar_img, use_container_width=True)
         else:
@@ -3239,22 +3370,21 @@ def render_validation_stage(final_state, is_demo, active_image=None):
     val_status = final_state.get("validation_status", "CONFIRMED BY MULTIPLE SIGNALS") if final_state else "STANDBY"
     spill_detected_flag = final_state.get("spill_detected", True) if final_state else True
 
-    stage_metrics = [
-        {"label": "AGREEMENT", "value": f"{c_agree:.0%}", "accent": "green", "provenance": "DERIVED"},
-        {"label": "DAMPING", "value": f"{contrast_val:.2f}", "unit": "ratio", "accent": "cyan", "provenance": "OBSERVED"},
-        {"label": "LAND OVERLAP", "value": f"{land_frac:.1%}", "accent": "green" if land_frac < 0.05 else "red", "provenance": "DERIVED"},
-        {"label": "DECISION", "value": "CONFIRMED" if spill_detected_flag else "REJECTED", "accent": "green" if spill_detected_flag else "red"},
-    ]
+    # Clean Stage Header (Section 19 & 20)
+    render_html(f"""
+    <div class="stage-header-box">
+        <div class="stage-header-meta">
+            <span class="stage-code">02  VALIDATION</span>
+            {render_provenance_badge('DERIVED')}
+        </div>
+        <div class="stage-title-row">
+            <h2 class="stage-headline">Consensus verification</h2>
+        </div>
+        <p class="stage-purpose-line">Multi-algorithm physics and computer vision verification eliminating look-alikes.</p>
+    </div>
+    """)
 
-    render_stage_banner(
-        stage_num=2,
-        title="Multi-Signal Consensus & Quorum",
-        purpose="Multi-algorithm physics and computer vision verification eliminating look-alikes and coastal false alarms.",
-        metrics=stage_metrics,
-        provenance="DERIVED",
-    )
-
-    val_col_img, val_col_ev = st.columns([12, 9])
+    val_col_img, val_col_ev = st.columns([13, 8])
 
     with val_col_img:
         st.markdown("##### Validated Consensus Overlay")
@@ -3278,6 +3408,14 @@ def render_validation_stage(final_state, is_demo, active_image=None):
                 st.image(diag_img, use_container_width=True)
 
     with val_col_ev:
+        val_metrics_readouts = [
+            {"label": "AGREEMENT", "value": f"{c_agree:.0%}", "accent": "green", "provenance": "DERIVED"},
+            {"label": "DAMPING", "value": f"{contrast_val:.2f}", "unit": "ratio", "accent": "cyan", "provenance": "OBSERVED"},
+            {"label": "LAND OVERLAP", "value": f"{land_frac:.1%}", "accent": "green" if land_frac < 0.05 else "red", "provenance": "DERIVED"},
+            {"label": "DECISION", "value": "CONFIRMED" if spill_detected_flag else "REJECTED", "accent": "green" if spill_detected_flag else "red"},
+        ]
+        render_compact_metrics(val_metrics_readouts)
+
         st.markdown("##### Signal Quorum Matrix")
         evidence_signals = [
             {
@@ -3479,7 +3617,7 @@ def render_ais_tab(final_state, is_demo):
                     "behavior": drift_str,
                 }
 
-                if render_candidate_vessel_card(rank, v_info, is_selected=is_selected, key=f"cand_card_btn_{c_mmsi}_{rank}"):
+                if render_candidate_vessel_card(rank, v_info, is_selected=is_selected, key=f"cand_card_btn_{c_mmsi}_{rank}", why_evidence=cand.get("evidence_summary", [])):
                     if is_selected:
                         st.session_state["selected_vessel_mmsi"] = None
                         st.session_state["selected_vessel"] = None
@@ -3493,17 +3631,33 @@ def render_ais_tab(final_state, is_demo):
             if sel_mmsi:
                 matched_cand = next((c for c in candidates if str(c.get("mmsi")) == sel_mmsi), None)
                 if matched_cand:
-                    with st.expander(f"EVIDENCE // {matched_cand.get('name', 'Vessel')} [MMSI: {sel_mmsi}]", expanded=True):
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            st.metric("Association Score", f"{matched_cand.get('score', 0):.1f}%")
-                            c_dist = matched_cand.get("min_distance_km") or matched_cand.get("closest_approach_distance_km") or matched_cand.get("min_distance_to_source_km") or 0.0
-                            st.metric("Distance to Source", f"{float(c_dist):.2f} km")
-                            st.metric("Temporal Alignment", "Coincident" if matched_cand.get("time_match") else "Offset")
-                        with c2:
-                            st.metric("Trajectory Consistency", f"{matched_cand.get('breakdown', {}).get('trajectory', 0):.0f}%")
-                            st.metric("Drift Consistency", "Consistent" if matched_cand.get("drift_consistency") else "Weak")
-                            st.metric("Heading Alignment", f"{matched_cand.get('breakdown', {}).get('heading', 0):.0f}%")
+                    v_name = matched_cand.get("name", "Vessel")
+                    v_track = ais_tracks.get(sel_mmsi, []) if isinstance(ais_tracks, dict) else []
+                    time_off = matched_cand.get("features", {}).get("time_diff_to_event_min")
+                    time_str = f"{time_off:.0f} min offset" if time_off is not None else ("Coincident" if matched_cand.get("time_match") else "Offset")
+                    c_dist = matched_cand.get("min_distance_km") or matched_cand.get("closest_approach_distance_km") or matched_cand.get("min_distance_to_source_km") or 0.0
+                    cpa_dist = matched_cand.get("features", {}).get("closest_approach_distance_km") or c_dist
+                    traj_str = f"{matched_cand.get('breakdown', {}).get('trajectory', 0):.0f}%" + (" (Aligned)" if matched_cand.get("trajectory_match") else " (Divergent)")
+                    drift_str = "Consistent" if matched_cand.get("drift_consistency") else "Weak"
+
+                    with st.expander(f"FOCUSED VESSEL EVIDENCE // {v_name} [MMSI: {sel_mmsi}]", expanded=True):
+                        render_html(f"""
+                        <div class="glass-panel" style="padding:14px 16px; margin-bottom:12px;">
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-family:var(--font-mono); font-size:12px;">
+                                <div><span style="color:#64748b;">VESSEL:</span> <span style="color:#f8fafc; font-weight:600;">{html.escape(str(v_name))}</span></div>
+                                <div><span style="color:#64748b;">MMSI:</span> <span style="color:#00e5ff;">{html.escape(str(sel_mmsi))}</span></div>
+                                <div><span style="color:#64748b;">TRACK:</span> <span style="color:#94a3b8;">{len(v_track)} waypoints</span></div>
+                                <div><span style="color:#64748b;">TIME:</span> <span style="color:#94a3b8;">{time_str}</span></div>
+                                <div><span style="color:#64748b;">DISTANCE:</span> <span style="color:#f59e0b;">{float(c_dist):.2f} km</span></div>
+                                <div><span style="color:#64748b;">CPA:</span> <span style="color:#10b981;">{float(cpa_dist):.2f} km</span></div>
+                                <div><span style="color:#64748b;">TRAJECTORY:</span> <span style="color:#94a3b8;">{traj_str}</span></div>
+                                <div><span style="color:#64748b;">DRIFT CONSISTENCY:</span> <span style="color:#38bdf8;">{drift_str}</span></div>
+                                <div style="grid-column:1 / -1; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06);">
+                                    <span style="color:#64748b;">ASSOCIATION:</span> <span style="color:#f59e0b; font-size:15px; font-weight:700;">{matched_cand.get('score', 0):.1f}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        """)
 
                         ev_summary = matched_cand.get("evidence_summary", [])
                         if ev_summary:
@@ -3596,11 +3750,45 @@ def render_ais_tab(final_state, is_demo):
                     if render_candidate_vessel_card(rank, v_info, is_selected=is_selected, key=f"live_card_btn_{v_mmsi}_{rank}"):
                         if is_selected:
                             st.session_state["selected_vessel_mmsi"] = None
+                            st.session_state["selected_vessel"] = None
                             st.session_state["map_focus"] = None
                         else:
                             st.session_state["selected_vessel_mmsi"] = v_mmsi
+                            st.session_state["selected_vessel"] = v_mmsi
                             st.session_state["map_focus"] = "vessel"
                         st.rerun()
+
+                if sel_mmsi:
+                    matched_v = next((v for v in filtered_vessels if str(v.get("mmsi")) == sel_mmsi), None)
+                    if matched_v:
+                        v_name = matched_v.get("name", "Vessel")
+                        v_spd = float(matched_v.get("speed", 0.0))
+                        v_crs = float(matched_v.get("course", 0.0))
+                        v_lat = float(matched_v.get("lat", 0.0))
+                        v_lon = float(matched_v.get("lon", 0.0))
+                        v_type = matched_v.get("vessel_type", "Commercial")
+                        v_ts = matched_v.get("timestamp", "NOW")
+
+                        with st.expander(f"FOCUSED VESSEL TELEMETRY // {v_name} [MMSI: {sel_mmsi}]", expanded=True):
+                            render_html(f"""
+                            <div class="glass-panel" style="padding:14px 16px; margin-bottom:12px;">
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-family:var(--font-mono); font-size:12px;">
+                                    <div><span style="color:#64748b;">VESSEL:</span> <span style="color:#f8fafc; font-weight:600;">{html.escape(str(v_name))}</span></div>
+                                    <div><span style="color:#64748b;">MMSI:</span> <span style="color:#00e5ff;">{html.escape(str(sel_mmsi))}</span></div>
+                                    <div><span style="color:#64748b;">TYPE:</span> <span style="color:#94a3b8;">{html.escape(str(v_type))}</span></div>
+                                    <div><span style="color:#64748b;">TIMESTAMP:</span> <span style="color:#94a3b8;">{html.escape(str(v_ts))}</span></div>
+                                    <div><span style="color:#64748b;">SPEED:</span> <span style="color:#f59e0b;">{v_spd:.1f} kn</span></div>
+                                    <div><span style="color:#64748b;">COURSE:</span> <span style="color:#10b981;">{v_crs:.0f}° True</span></div>
+                                    <div><span style="color:#64748b;">POSITION:</span> <span style="color:#38bdf8;">{v_lat:.4f}°N, {v_lon:.4f}°E</span></div>
+                                    <div><span style="color:#64748b;">STATUS:</span> <span style="color:#94a3b8;">Active Stream</span></div>
+                                </div>
+                            </div>
+                            """)
+                            if st.button("✕ Deselect Focused Track", key="btn_desel_live_vessel", use_container_width=True):
+                                st.session_state["selected_vessel_mmsi"] = None
+                                st.session_state["selected_vessel"] = None
+                                st.session_state["map_focus"] = None
+                                st.rerun()
 
 
 # =========================================================================
@@ -3619,45 +3807,104 @@ def render_source_stage(final_state, is_demo):
     unc_km = final_state.get("source_uncertainty_km", 5.0)
     c_speed = hindcast.get("current_speed_ms", 0.48)
     c_bearing = hindcast.get("current_bearing_deg", 118.0)
+    candidates = final_state.get("candidate_scores", []) or []
+    top_cand = candidates[0] if candidates else {}
+    top_name = top_cand.get("name", "MT Ocean Pioneer")
+    top_mmsi = top_cand.get("mmsi", "413289000")
+    c_dist = float(top_cand.get("min_distance_km") or top_cand.get("closest_approach_distance_km") or 4.2)
 
-    stage_metrics = [
-        {"label": "BACKTRACK WINDOW", "value": "180", "unit": "min", "accent": "cyan", "provenance": "ESTIMATED"},
-        {"label": "PROBABLE ORIGIN", "value": f"{source_lat:.4f}°N, {source_lon:.4f}°E", "accent": "cyan", "provenance": "ESTIMATED"},
-        {"label": "UNCERTAINTY", "value": f"±{unc_km:.1f}", "unit": "km", "accent": "amber", "provenance": "ESTIMATED"},
-        {"label": "CORRELATED FLEET", "value": "1 Candidate", "accent": "green", "provenance": "DERIVED"},
-    ]
-
-    render_stage_banner(
-        stage_num=4,
-        title="Hydrodynamic Backtrack & Source Region",
-        purpose="Reverse advection equations backtrack observed slick footprint to credible origin zone.",
-        metrics=stage_metrics,
-        provenance="ESTIMATED",
-    )
+    # Clean Stage Header (Section 19 & 20)
+    render_html(f"""
+    <div class="stage-header-box">
+        <div class="stage-header-meta">
+            <span class="stage-code">04  SOURCE</span>
+            {render_provenance_badge('ESTIMATED')}
+        </div>
+        <div class="stage-title-row">
+            <h2 class="stage-headline">Probable origin</h2>
+        </div>
+        <p class="stage-purpose-line">Where the spill likely originated based on hydrodynamic reverse-advection.</p>
+    </div>
+    """)
 
     col_map, col_chain = st.columns([13, 8])
 
     with col_map:
+        # Tactical Map Header
+        cand_label = f"{len(candidates)} CANDIDATE CORRIDOR" if candidates else "FLEET CORRIDOR"
+        render_html(f"""
+        <div class="map-tactical-header">
+            <div><span class="status-pulse-sm"></span><span class="map-tactical-title">ORIGIN RECONSTRUCTION</span></div>
+            <div>180 MIN REVERSE ADVECTION · {cand_label}</div>
+        </div>
+        """)
+
+        # Source Timeline Forensics Scrubber (Section 12: T-3, T0, T+6, T+12, T+24)
+        time_options = [
+            {"id": "T-3", "label": "T-3h (Origin)"},
+            {"id": "T0", "label": "T0 (Observed)"},
+            {"id": "T+6", "label": "T+6h"},
+            {"id": "T+12", "label": "T+12h"},
+            {"id": "T+24", "label": "T+24h"},
+        ]
+        cur_t = st.session_state.get("selected_source_time", "T0")
+        sel_t = render_segmented_layer_control(
+            time_options,
+            active_layer_id=cur_t,
+            key_prefix="src_timeline_ctrl",
+            on_change_state_key="selected_source_time",
+        )
+        st.session_state["selected_source_time"] = sel_t
+
+        time_offsets = {"T-3": -180, "T0": 0, "T+6": 360, "T+12": 720, "T+24": 1440}
+        slider_min = time_offsets.get(sel_t, 0)
+
         fmap_source = build_investigation_map(
             final_state,
             mode="SOURCE",
-            slider_minutes=st.session_state.get("timeline_min", 0),
+            slider_minutes=slider_min,
             selected_vessel_mmsi=st.session_state.get("selected_vessel_mmsi"),
             is_demo=is_demo,
         )
-        st_folium(fmap_source, height=600, use_container_width=True, key="source_folium_map", returned_objects=[])
+        st_folium(fmap_source, height=580, use_container_width=True, key="source_folium_map", returned_objects=[])
+        st.caption("Map Features: Observed Spill Footprint • Reverse Advection Backtrack • Probable Source Ellipse • Vessel Trajectories")
 
     with col_chain:
+        # Compact Side Metrics (Section 21)
+        src_metrics_readouts = [
+            {"label": "BACKTRACK WINDOW", "value": "180", "unit": "min", "accent": "cyan", "provenance": "ESTIMATED"},
+            {"label": "PROBABLE ORIGIN", "value": f"{source_lat:.4f}°N, {source_lon:.4f}°E", "accent": "cyan", "provenance": "ESTIMATED"},
+            {"label": "UNCERTAINTY", "value": f"±{unc_km:.1f}", "unit": "km", "accent": "amber", "provenance": "ESTIMATED"},
+            {"label": "CANDIDATE CPA", "value": f"{c_dist:.1f}", "unit": "km", "accent": "green", "provenance": "DERIVED"},
+        ]
+        render_compact_metrics(src_metrics_readouts)
+
+        # Featured Candidate Track Panel (Section 11)
+        st.markdown("##### Featured Candidate Track")
+        render_html(f"""
+        <div class="glass-panel" style="padding:12px 14px; margin-bottom:12px; font-family:var(--font-mono); font-size:12px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <div><span style="color:#64748b;">VESSEL:</span> <span style="color:#f8fafc; font-weight:600;">{html.escape(str(top_name))}</span></div>
+                <div><span style="color:#64748b;">MMSI:</span> <span style="color:#00e5ff;">{html.escape(str(top_mmsi))}</span></div>
+                <div><span style="color:#64748b;">TIME:</span> <span style="color:#94a3b8;">Coincident (T-168m)</span></div>
+                <div><span style="color:#64748b;">DISTANCE:</span> <span style="color:#f59e0b;">{c_dist:.2f} km</span></div>
+                <div><span style="color:#64748b;">SOURCE ALIGNMENT:</span> <span style="color:#10b981;">Origin Intersecting</span></div>
+                <div><span style="color:#64748b;">TRAJECTORY:</span> <span style="color:#38bdf8;">Advection Consistent</span></div>
+            </div>
+        </div>
+        """)
+
+        # Analytical Evidence Chain (Section 13)
         st.markdown("##### Analytical Evidence Chain")
         chain_nodes = [
             {
-                "title": "SPILL FOOTPRINT OBSERVED",
+                "title": "OBSERVED SPILL FOOTPRINT",
                 "desc": f"Sentinel-1A SAR radar pass acquired at T=0. 1.77 km² confirmed slick at {spill_lat:.4f}°N, {spill_lon:.4f}°E.",
                 "provenance": "OBSERVED",
             },
             {
                 "title": "HYDRODYNAMIC BACKTRACK",
-                "desc": f"Euler advection reversed 180 min using INCOIS/GFS surface currents ({c_speed:.2f} m/s @ {c_bearing:.0f}°) and 3% wind leeway.",
+                "desc": f"Euler advection reversed 180 min using INCOIS surface currents ({c_speed:.2f} m/s @ {c_bearing:.0f}°) and 3% wind leeway.",
                 "provenance": "ESTIMATED",
             },
             {
@@ -3666,8 +3913,8 @@ def render_source_stage(final_state, is_demo):
                 "provenance": "ESTIMATED",
             },
             {
-                "title": "VESSEL TRAJECTORY INTERSECTION",
-                "desc": "Candidate tanker MT Ocean Pioneer (MMSI: 413289000) track directly intersects origin region at coincident time window (T-168m).",
+                "title": "VESSEL TRACK INTERSECTION",
+                "desc": f"Candidate vessel {top_name} (MMSI: {top_mmsi}) intersects origin corridor coincident with inferred release window.",
                 "provenance": "DERIVED",
             },
         ]
@@ -3750,128 +3997,151 @@ def render_drift_tab(final_state, is_demo):
     eta_str = f"{eta:.1f}h to beach" if eta else "No landfall"
     risk_level = risk.get("level", "MEDIUM")
 
-    stage_metrics = [
-        {"label": "BACKTRACK WINDOW", "value": "180", "unit": "min", "accent": "cyan", "provenance": "ESTIMATED"},
-        {"label": "FORWARD HORIZON", "value": "24", "unit": "hrs", "accent": "cyan", "provenance": "ESTIMATED"},
-        {"label": "NET ADVECTION", "value": f"{net_drift_speed:.2f}", "unit": f"m/s @ {net_drift_bearing:.0f}°", "accent": "green", "provenance": "DERIVED"},
-        {"label": "COASTAL RISK", "value": risk_level, "unit": eta_str, "accent": "amber" if risk_level in ("HIGH", "MEDIUM") else "green", "provenance": "DERIVED"},
-    ]
+    # Clean Stage Header (Section 19 & 20)
+    render_html(f"""
+    <div class="stage-header-box">
+        <div class="stage-header-meta">
+            <span class="stage-code">05  DRIFT</span>
+            {render_provenance_badge('ESTIMATED')}
+        </div>
+        <div class="stage-title-row">
+            <h2 class="stage-headline">Drift forensics</h2>
+        </div>
+        <p class="stage-purpose-line">Euler advection forward trajectory and shoreline exposure forecasting.</p>
+    </div>
+    """)
 
-    render_stage_banner(
-        stage_num=5,
-        title="Hydrodynamic Drift Forensics",
-        purpose="Euler advection forward trajectory and hydrodynamic shoreline exposure forecasting.",
-        metrics=stage_metrics,
-        provenance="ESTIMATED",
-    )
+    candidates = final_state.get("candidate_scores", []) or []
+    top_cand = candidates[0] if candidates else {}
+    top_name = top_cand.get("name", "MT Ocean Pioneer")
+    top_mmsi = top_cand.get("mmsi", "413289000")
+    c_dist = float(top_cand.get("min_distance_km") or top_cand.get("closest_approach_distance_km") or 4.2)
 
-    # Segmented Workspace Sub-mode Toggle
-    drift_view = st.radio(
-        "Drift Sub-Mode",
-        ["Advection Trajectory", "Shoreline Vulnerability & Assets"],
-        horizontal=True,
-        key="drift_workspace_view_mode",
-        label_visibility="collapsed",
-    )
+    col_drift_map, col_drift_info = st.columns([13, 8])
 
-    if drift_view == "Shoreline Vulnerability & Assets":
-        render_risk_tab(final_state, is_demo=is_demo)
-        return
-
-    # Visual Directional Summary Cards
-    col_from, col_to = st.columns(2)
-    with col_from:
+    with col_drift_map:
+        # Tactical Map Header
         render_html(f"""
-        <div class="glass-panel" style="padding:12px 16px; border-left:3px solid #00D9FF !important; margin-bottom:10px;">
-            <div style="font-family:var(--font-mono); font-size:11px; color:#00D9FF; letter-spacing:0.08em; font-weight:700;">WHERE IT CAME FROM // BACKTRACK</div>
-            <div style="font-size:13px; color:#f8fafc; margin-top:3px;">
-                Advection reversed 180 min to 13.1380°N, 80.3710°E (MT Ocean Pioneer track intersection).
+        <div class="map-tactical-header">
+            <div><span class="status-pulse-sm"></span><span class="map-tactical-title">ADVECTION TRAJECTORY & DISPERSION</span></div>
+            <div>NET DRIFT: {net_drift_speed:.2f} m/s @ {net_drift_bearing:.0f}° · HORIZON: {cur_h:+.1f}h</div>
+        </div>
+        """)
+
+        # Primary Drift Folium Map Canvas
+        fmap_drift = build_investigation_map(
+            final_state,
+            mode="DRIFT",
+            drift_hours=cur_h,
+            is_demo=is_demo,
+        )
+        st_folium(fmap_drift, height=540, use_container_width=True, key="drift_intelligence_folium_map", returned_objects=[])
+
+        # Sleek Scrubber and Milestone Controls (Section 17)
+        col_ctl_play, col_ctl_step, col_ctl_m1, col_ctl_m2, col_ctl_m3, col_ctl_m4, col_ctl_m5, col_ctl_m6 = st.columns([2.5, 2, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5])
+
+        with col_ctl_play:
+            is_playing = st.session_state.get("drift_play", False)
+            if is_playing:
+                if st.button("Pause", key="btn_drift_pause", use_container_width=True, type="primary"):
+                    st.session_state["drift_play"] = False
+                    st.rerun()
+            else:
+                if st.button("Play", key="btn_drift_play", use_container_width=True, type="secondary"):
+                    st.session_state["drift_play"] = True
+                    st.rerun()
+
+        with col_ctl_step:
+            if st.button("Reset (NOW)", key="btn_drift_reset_now", use_container_width=True):
+                st.session_state["drift_h"] = 0.0
+                st.session_state["drift_play"] = False
+                st.rerun()
+
+        milestone_buttons = [
+            (-12.0, "T-12h", col_ctl_m1),
+            (-6.0,  "T-6h",  col_ctl_m2),
+            (0.0,   "NOW",   col_ctl_m3),
+            (6.0,   "T+6h",  col_ctl_m4),
+            (12.0,  "T+12h", col_ctl_m5),
+            (24.0,  "T+24h", col_ctl_m6),
+        ]
+        for m_val, m_label, col in milestone_buttons:
+            with col:
+                is_active_ms = abs(st.session_state["drift_h"] - m_val) < 0.25
+                if st.button(m_label, key=f"btn_ms_{m_val}", use_container_width=True, type="primary" if is_active_ms else "secondary"):
+                    st.session_state["drift_h"] = m_val
+                    st.session_state["drift_play"] = False
+                    st.rerun()
+
+        scrub_val = st.slider(
+            "Advection Horizon",
+            min_value=-12.0,
+            max_value=24.0,
+            value=float(st.session_state["drift_h"]),
+            step=0.5,
+            format="%+.1f hrs",
+            key="drift_slider_input",
+            label_visibility="collapsed",
+        )
+        if scrub_val != st.session_state["drift_h"]:
+            st.session_state["drift_h"] = scrub_val
+
+    with col_drift_info:
+        # Compact Side Metrics (Section 21)
+        drift_metrics_readouts = [
+            {"label": "BACKTRACK WINDOW", "value": "180", "unit": "min", "accent": "cyan", "provenance": "ESTIMATED"},
+            {"label": "FORWARD HORIZON", "value": "24", "unit": "hrs", "accent": "cyan", "provenance": "ESTIMATED"},
+            {"label": "NET ADVECTION", "value": f"{net_drift_speed:.2f}", "unit": f"m/s @ {net_drift_bearing:.0f}°", "accent": "green", "provenance": "DERIVED"},
+            {"label": "COASTAL RISK", "value": risk_level, "unit": eta_str, "accent": "amber" if risk_level in ("HIGH", "MEDIUM") else "green", "provenance": "DERIVED"},
+        ]
+        render_compact_metrics(drift_metrics_readouts)
+
+        # Vessel ↔ Drift Consistency Panel (Section 15)
+        st.markdown("##### Vessel ↔ Drift Consistency")
+        render_html(f"""
+        <div class="glass-panel" style="padding:12px 14px; margin-bottom:12px; font-family:var(--font-mono); font-size:12px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <div><span style="color:#64748b;">CANDIDATE:</span> <span style="color:#f8fafc; font-weight:600;">{html.escape(str(top_name))}</span></div>
+                <div><span style="color:#64748b;">MMSI:</span> <span style="color:#00e5ff;">{html.escape(str(top_mmsi))}</span></div>
+                <div><span style="color:#64748b;">ORIGIN DISTANCE:</span> <span style="color:#f59e0b;">{c_dist:.2f} km</span></div>
+                <div><span style="color:#64748b;">TIME ALIGNMENT:</span> <span style="color:#10b981;">T-168 min coincident</span></div>
+                <div><span style="color:#64748b;">CORRIDOR:</span> <span style="color:#38bdf8;">Parallel to advection</span></div>
+                <div><span style="color:#64748b;">STATUS:</span> <span style="color:#10b981;">Trajectory consistent</span></div>
+                <div style="grid-column:1 / -1; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06); font-size:11px; color:#94a3b8;">
+                    Association strengthened by spatial proximity to backtracked oil path and temporal alignment with inferred release window.
+                </div>
             </div>
         </div>
         """)
-    with col_to:
+
+        # Visual Directional Summary Cards
         render_html(f"""
-        <div class="glass-panel" style="padding:12px 16px; border-left:3px solid #F59E0B !important; margin-bottom:10px;">
-            <div style="font-family:var(--font-mono); font-size:11px; color:#F59E0B; letter-spacing:0.08em; font-weight:700;">WHERE IT MAY MOVE // FORWARD HORIZON</div>
-            <div style="font-size:13px; color:#f8fafc; margin-top:3px;">
+        <div class="glass-panel" style="padding:10px 14px; border-left:3px solid #00D9FF !important; margin-bottom:8px;">
+            <div style="font-family:var(--font-mono); font-size:11px; color:#00D9FF; letter-spacing:0.08em; font-weight:700;">WHERE IT CAME FROM · BACKTRACK</div>
+            <div style="font-size:12px; color:#cbd5e1; margin-top:2px;">
+                Advection reversed 180 min to 13.1380°N, 80.3710°E (candidate track intersection).
+            </div>
+        </div>
+        <div class="glass-panel" style="padding:10px 14px; border-left:3px solid #F59E0B !important; margin-bottom:12px;">
+            <div style="font-family:var(--font-mono); font-size:11px; color:#F59E0B; letter-spacing:0.08em; font-weight:700;">WHERE IT MAY MOVE · FORWARD HORIZON</div>
+            <div style="font-size:12px; color:#cbd5e1; margin-top:2px;">
                 Trajectory advances along {net_drift_bearing:.0f}° corridor at {net_speed_knots:.1f} kn towards Ennore/Marina coastline.
             </div>
         </div>
         """)
-
-    # Primary Drift Folium Map Canvas
-    fmap_drift = build_investigation_map(
-        final_state,
-        mode="DRIFT",
-        drift_hours=cur_h,
-        is_demo=is_demo,
-    )
-    st_folium(fmap_drift, height=580, use_container_width=True, key="drift_intelligence_folium_map", returned_objects=[])
-
-    # Sleek Scrubber and Milestone Controls
-    render_html("<hr style='border-color:rgba(255,255,255,0.08); margin:14px 0 10px 0;'>")
-
-    col_ctl_play, col_ctl_step, col_ctl_m1, col_ctl_m2, col_ctl_m3, col_ctl_m4, col_ctl_m5, col_ctl_m6 = st.columns([2.5, 2, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5])
-
-    with col_ctl_play:
-        is_playing = st.session_state.get("drift_play", False)
-        if is_playing:
-            if st.button("Pause", key="btn_drift_pause", use_container_width=True, type="primary"):
-                st.session_state["drift_play"] = False
-                st.rerun()
-        else:
-            if st.button("Play", key="btn_drift_play", use_container_width=True, type="secondary"):
-                st.session_state["drift_play"] = True
-                st.rerun()
-
-    with col_ctl_step:
-        if st.button("Reset (NOW)", key="btn_drift_reset_now", use_container_width=True):
-            st.session_state["drift_h"] = 0.0
-            st.session_state["drift_play"] = False
-            st.rerun()
-
-    milestone_buttons = [
-        (-12.0, "T-12h", col_ctl_m1),
-        (-6.0,  "T-6h",  col_ctl_m2),
-        (0.0,   "NOW",   col_ctl_m3),
-        (6.0,   "T+6h",  col_ctl_m4),
-        (12.0,  "T+12h", col_ctl_m5),
-        (24.0,  "T+24h", col_ctl_m6),
-    ]
-    for m_val, m_label, col in milestone_buttons:
-        with col:
-            is_active_ms = abs(st.session_state["drift_h"] - m_val) < 0.25
-            if st.button(m_label, key=f"btn_ms_{m_val}", use_container_width=True, type="primary" if is_active_ms else "secondary"):
-                st.session_state["drift_h"] = m_val
-                st.session_state["drift_play"] = False
-                st.rerun()
-
-    scrub_val = st.slider(
-        "Advection Horizon",
-        min_value=-12.0,
-        max_value=24.0,
-        value=float(st.session_state["drift_h"]),
-        step=0.5,
-        format="%+.1f hrs",
-        key="drift_slider_input",
-        label_visibility="collapsed",
-    )
-    if scrub_val != st.session_state["drift_h"]:
-        st.session_state["drift_h"] = scrub_val
-
-    # Collapsible Model Details & Scientific Disclosure
-    with st.expander("Model Details & Scientific Disclosure", expanded=False):
-        st.json({
-            "current_vector_ms": round(c_speed, 3),
-            "current_bearing_deg": round(c_bearing, 1),
-            "wind_speed_ms": round(w_speed, 2),
-            "wind_bearing_deg": round(w_bearing, 1),
-            "wind_leeway_factor": w_factor,
-            "net_advection_ms": round(net_drift_speed, 3),
-            "net_advection_bearing": round(net_drift_bearing, 1),
-            "integration_scheme": "Euler discrete step advection with linear dispersion growth",
-            "ocean_data_source": "INCOIS Coastal Current Forecast + GFS Surface Winds",
-        })
+        # Collapsible Model Details & Scientific Disclosure
+        with st.expander("Model Details & Scientific Disclosure", expanded=False):
+            st.json({
+                "current_vector_ms": round(c_speed, 3),
+                "current_bearing_deg": round(c_bearing, 1),
+                "wind_speed_ms": round(w_speed, 2),
+                "wind_bearing_deg": round(w_bearing, 1),
+                "wind_leeway_factor": w_factor,
+                "net_advection_ms": round(net_drift_speed, 3),
+                "net_advection_bearing": round(net_drift_bearing, 1),
+                "integration_scheme": "Euler discrete step advection with linear dispersion growth",
+                "ocean_data_source": "INCOIS Coastal Current Forecast + GFS Surface Winds",
+            })
 
     # Animation Playback Loop
     if st.session_state.get("drift_play", False):
@@ -3986,20 +4256,27 @@ def render_reports_tab(final_state, is_demo):
     classification = report.get("classification", "RESTRICTED")
     gen_time = report.get("generated_at", "2026-09-14 15:35 UTC")
 
-    stage_metrics = [
+    # Clean Stage Header (Section 18, 19 & 20)
+    render_html(f"""
+    <div class="stage-header-box">
+        <div class="stage-header-meta">
+            <span class="stage-code">06  DOSSIER</span>
+            {render_provenance_badge('DERIVED')}
+        </div>
+        <div class="stage-title-row">
+            <h2 class="stage-headline">Regulatory-ready incident report</h2>
+        </div>
+        <p class="stage-purpose-line">Evidence-backed regulatory incident dossier synthesizing satellite radar observations, consensus validation, fleet tracking, and hydrodynamic drift.</p>
+    </div>
+    """)
+
+    report_metrics = [
         {"label": "DOSSIER REF", "value": incident_id, "accent": "cyan", "provenance": "DERIVED"},
         {"label": "CLASSIFICATION", "value": classification, "accent": "amber", "provenance": "DERIVED"},
         {"label": "EVIDENCE NODES", "value": "6 / 6 Validated", "accent": "green", "provenance": "OBSERVED"},
         {"label": "LEGAL STATUS", "value": "Regulatory-Ready", "accent": "cyan", "provenance": "DERIVED"},
     ]
-
-    render_stage_banner(
-        stage_num=6,
-        title="Regulatory Investigation Report",
-        purpose="Evidence-backed regulatory incident dossier synthesizing satellite radar observations, consensus validation, fleet tracking, and hydrodynamic drift.",
-        metrics=stage_metrics,
-        provenance="DERIVED",
-    )
+    render_compact_metrics(report_metrics)
 
     # Primary Export Actions
     col_pdf, col_json = st.columns(2)
@@ -4041,7 +4318,7 @@ def render_reports_tab(final_state, is_demo):
     preview_sections = [
         {
             "num": "01",
-            "title": "INCIDENT SUMMARY",
+            "title": "INCIDENT",
             "provenance": "OBSERVED",
             "desc": f"Incident {incident_id} detected at 13.0827°N, 80.2707°E (Chennai Port Outer Anchorage). Generated {gen_time}.",
             "data": {
@@ -4053,7 +4330,7 @@ def render_reports_tab(final_state, is_demo):
         },
         {
             "num": "02",
-            "title": "RADAR OBSERVATION EVIDENCE (SAR)",
+            "title": "OBSERVATION",
             "provenance": "OBSERVED",
             "desc": "Sentinel-1A C-band SAR pass acquired with radar backscatter damping confirming 1.77 km² slick surface area.",
             "data": {
@@ -4065,7 +4342,7 @@ def render_reports_tab(final_state, is_demo):
         },
         {
             "num": "03",
-            "title": "MULTI-SIGNAL CONSENSUS VALIDATION",
+            "title": "SAR VALIDATION",
             "provenance": "DERIVED",
             "desc": "Deep learning YOLOv8 detection correlated with classical Otsu/K-means damping and land buffer exclusion.",
             "data": {
@@ -4077,7 +4354,7 @@ def render_reports_tab(final_state, is_demo):
         },
         {
             "num": "04",
-            "title": "AIS FLEET CORRELATION",
+            "title": "VESSEL CORRELATION",
             "provenance": "DERIVED",
             "desc": "Spatiotemporal proximity analysis of commercial fleet identifies MT Ocean Pioneer as candidate vessel.",
             "data": {
@@ -4090,7 +4367,7 @@ def render_reports_tab(final_state, is_demo):
         },
         {
             "num": "05",
-            "title": "PROBABLE SOURCE REGION",
+            "title": "SOURCE ANALYSIS",
             "provenance": "ESTIMATED",
             "desc": "Discrete Euler advection backtrack reverses surface currents and windage to reconstruct origin corridor.",
             "data": {
@@ -4102,7 +4379,7 @@ def render_reports_tab(final_state, is_demo):
         },
         {
             "num": "06",
-            "title": "HYDRODYNAMIC DRIFT FORECAST",
+            "title": "DRIFT FORENSICS",
             "provenance": "ESTIMATED",
             "desc": "24-hour forward projection under regional INCOIS surface currents (0.48 m/s @ 118°) and 3% wind leeway.",
             "data": {
@@ -4114,7 +4391,7 @@ def render_reports_tab(final_state, is_demo):
         },
         {
             "num": "07",
-            "title": "OPERATIONAL DISCLOSURES & SCIENTIFIC LIMITATIONS",
+            "title": "LIMITATIONS",
             "provenance": "UNAVAILABLE",
             "desc": "Explicit disclosure of sensor latency, atmospheric wind assumptions, and validation confidence bounds.",
             "data": {
@@ -4127,7 +4404,7 @@ def render_reports_tab(final_state, is_demo):
 
     for p in preview_sections:
         badge_html = render_provenance_badge(p['provenance'])
-        with st.expander(f"{p['num']} // {p['title']}", expanded=(p['num'] in ("01", "02"))):
+        with st.expander(f"{p['num']}  {p['title']}", expanded=(p['num'] in ("01", "02"))):
             render_html(f"""
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                 <span style="font-size:13px; color:#cbd5e1;">{p['desc']}</span>
