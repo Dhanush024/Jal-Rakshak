@@ -85,10 +85,14 @@ class CandidateScore:
     drift_consistency: bool = False
 
     def to_dict(self) -> dict:
+        feats_dict = self.features.to_dict() if hasattr(self, "features") and self.features else {}
         return {
             "mmsi": self.mmsi,
             "name": self.name,
             "score": round(self.total_score, 1),
+            "min_distance_km": round(self.features.closest_approach_distance_km, 2) if hasattr(self, "features") and self.features else None,
+            "min_distance_to_source_km": round(self.features.min_distance_to_source_km, 2) if hasattr(self, "features") and self.features else None,
+            "features": feats_dict,
             "breakdown": {
                 "spatial": round(self.spatial_score, 1),
                 "temporal": round(self.temporal_score, 1),
@@ -109,6 +113,7 @@ class CandidateScore:
                 "It does NOT constitute proof of liability or legal attribution."
             ),
         }
+
 
 
 def compute_vessel_features(track: List[AISRecord],

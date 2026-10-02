@@ -165,6 +165,63 @@ p, li, span {
     transform: scale(0.99) !important;
 }
 
+/* ── Segmented Layer Controls (No Ellipsis, No Button Clipping) ── */
+[data-testid="stSegmentedControl"] {
+    background: rgba(10, 16, 28, 0.85) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 8px !important;
+    padding: 3px !important;
+    gap: 4px !important;
+    width: 100% !important;
+}
+
+[data-testid="stSegmentedControl"] button,
+[data-testid="stSegmentedControl"] [data-testid="stSegmentedControlItem"] button {
+    border-radius: 6px !important;
+    font-family: var(--font-mono) !important;
+    font-size: 11.5px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.03em !important;
+    padding: 5px 10px !important;
+    min-height: 32px !important;
+    white-space: nowrap !important;
+    text-overflow: clip !important;
+    border: 1px solid transparent !important;
+    color: #94a3b8 !important;
+    background: transparent !important;
+    transition: all 0.15s ease !important;
+    box-shadow: none !important;
+}
+
+[data-testid="stSegmentedControl"] button:hover,
+[data-testid="stSegmentedControl"] [data-testid="stSegmentedControlItem"] button:hover {
+    color: #f8fafc !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+[data-testid="stSegmentedControl"] button[aria-checked="true"],
+[data-testid="stSegmentedControl"] button[data-state="on"],
+[data-testid="stSegmentedControl"] [data-testid="stSegmentedControlItem"] button[aria-checked="true"] {
+    background: rgba(0, 229, 255, 0.16) !important;
+    color: #00e5ff !important;
+    border: 1px solid rgba(0, 229, 255, 0.45) !important;
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.18) !important;
+    font-weight: 600 !important;
+}
+
+/* Fallback button containers for multi-column segmented controls */
+div[data-testid="stHorizontalBlock"]:has(button[key*="sar_layer_tab"]) button,
+div[data-testid="stHorizontalBlock"]:has(button[key*="layer_ctrl"]) button,
+div[data-testid="stHorizontalBlock"]:has(button[key*="cmd_mode_btn"]) button {
+    padding: 4px 6px !important;
+    font-size: 11px !important;
+    min-height: 32px !important;
+    white-space: nowrap !important;
+    text-overflow: clip !important;
+    letter-spacing: 0.02em !important;
+    font-family: var(--font-mono) !important;
+}
+
 /* Form Inputs */
 input, select, textarea, [data-baseweb="input"], [data-baseweb="select"] {
     font-size: 14.5px !important;
@@ -359,50 +416,123 @@ input, select, textarea, [data-baseweb="input"], [data-baseweb="select"] {
     border-color: rgba(56, 189, 248, 0.25);
 }
 
-/* ── Top Brand Bar (Restrained, Professional) ── */
-.brand-bar {
+/* ── Unified Operations Header (Height 64–76px, Clean, Minimal) ── */
+.unified-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 20px;
+    min-height: 64px;
+    max-height: 76px;
+    padding: 10px 20px;
     margin-bottom: 16px;
     border-radius: var(--radius-md);
     background: var(--bg-panel);
     border: 1px solid var(--border-default);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    gap: 16px;
 }
 
-.brand-title-group {
+.unified-brand-group {
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
-.brand-title {
-    font-size: 24px !important;
+.unified-brand-title {
+    font-size: 20px !important;
     font-weight: 800 !important;
     color: var(--text-pure) !important;
     letter-spacing: -0.01em !important;
     margin: 0 !important;
     line-height: 1 !important;
+    cursor: pointer;
+    text-decoration: none;
+    transition: opacity 0.15s ease;
 }
 
-.brand-subtitle {
-    font-size: 13px;
-    color: var(--text-secondary);
-    font-family: var(--font-sans);
-    margin-top: 3px;
+.unified-brand-title:hover {
+    opacity: 0.85;
 }
 
-.brand-meta-group {
+.unified-brand-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-top: 2px;
+}
+
+.unified-nav-cluster {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 6px;
 }
 
-.telemetry-readout {
+.unified-status-group {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: 14px;
+}
+
+.unified-status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ── Smooth View Transitions (150–250ms) ── */
+.view-transition {
+    animation: smoothFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes smoothFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Clean Empty States ── */
+.empty-state-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: 36px 24px;
+    text-align: center;
+    margin: 16px 0;
+}
+
+.empty-state-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+}
+
+.empty-state-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-pure);
+    margin-bottom: 8px;
+}
+
+.empty-state-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    max-width: 440px;
+    margin: 0 auto 16px auto;
+    line-height: 1.5;
 }
 
 /* ── Primary Map Frame & Tactical Header ── */
@@ -1009,3 +1139,577 @@ input, select, textarea, [data-baseweb="input"], [data-baseweb="select"] {
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 229, 255, 0.35);
 }
+
+/* ── Unified Navigation Header Elements (Section 6 & 7) ── */
+.hdr-mode-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.mode-pill-live {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #10b981;
+}
+
+.mode-pill-demo {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #f59e0b;
+}
+
+.hdr-status-compact {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: rgba(11, 15, 25, 0.60);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    white-space: nowrap;
+}
+
+.status-dot-green {
+    color: #10b981;
+    font-size: 10px;
+}
+
+.status-dot-amber {
+    color: #f59e0b;
+    font-size: 10px;
+}
+
+/* ==========================================================================
+   PHASE A: REUSABLE GLASSY MARITIME DESIGN SYSTEM & COMPONENT CLASSES
+   ========================================================================== */
+
+/* ── Provenance Badges ── */
+.badge-provenance {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    vertical-align: middle;
+    line-height: 1.2;
+}
+
+.badge-provenance-observed {
+    background: rgba(56, 189, 248, 0.10);
+    border: 1px solid rgba(56, 189, 248, 0.30);
+    color: #38bdf8;
+}
+
+.badge-provenance-derived {
+    background: rgba(14, 165, 233, 0.12);
+    border: 1px solid rgba(14, 165, 233, 0.28);
+    color: #7dd3fc;
+}
+
+.badge-provenance-estimated {
+    background: rgba(245, 158, 11, 0.10);
+    border: 1px solid rgba(245, 158, 11, 0.30);
+    color: #f59e0b;
+}
+
+.badge-provenance-unavailable {
+    background: rgba(148, 163, 184, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.20);
+    color: #94a3b8;
+}
+
+/* ── Unified Stage Header Banner ── */
+.stage-header-box {
+    background: rgba(10, 16, 28, 0.70);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.stage-header-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.stage-code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.10em;
+    color: var(--accent-cyan);
+    text-transform: uppercase;
+}
+
+.stage-headline {
+    font-size: 22px !important;
+    font-weight: 600 !important;
+    color: var(--text-pure) !important;
+    letter-spacing: -0.015em !important;
+    margin: 0 !important;
+    line-height: 1.25 !important;
+}
+
+.stage-purpose-line {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 4px 0 12px 0;
+    line-height: 1.45;
+}
+
+.stage-metrics-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stage-metric-chip {
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    padding: 6px 12px;
+    min-width: 110px;
+}
+
+.stage-metric-label {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+.stage-metric-val {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-pure);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Compact Quantitative Metrics Grid ── */
+.compact-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    margin: 12px 0;
+}
+
+.compact-metric-pill {
+    background: rgba(10, 16, 28, 0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+    padding: 10px 14px;
+    transition: border-color 0.18s ease;
+}
+
+.compact-metric-pill:hover {
+    border-color: rgba(56, 189, 248, 0.25);
+}
+
+.compact-metric-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.compact-metric-value {
+    font-family: var(--font-mono);
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+}
+
+.metric-val-default { color: #f8fafc; }
+.metric-val-cyan    { color: #38bdf8; }
+.metric-val-amber   { color: #f59e0b; }
+.metric-val-green   { color: #10b981; }
+.metric-val-red     { color: #ef4444; }
+
+.compact-unit {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted);
+    margin-left: 3px;
+}
+
+/* ── Signal Evidence Container (Section 7) ── */
+.signal-evidence-container {
+    background: rgba(10, 16, 28, 0.65);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 12px 0;
+}
+
+.signal-evidence-row {
+    display: grid;
+    grid-template-columns: 180px 140px 1fr;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    transition: background 0.15s ease;
+}
+
+.signal-evidence-row:last-child {
+    border-bottom: none;
+}
+
+.signal-evidence-row:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.signal-name-text {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.02em;
+}
+
+.signal-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.signal-badge-success {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.32);
+    color: #10b981;
+}
+
+.signal-badge-cyan {
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.32);
+    color: #38bdf8;
+}
+
+.signal-badge-danger {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.32);
+    color: #ef4444;
+}
+
+.signal-badge-neutral {
+    background: rgba(148, 163, 184, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.20);
+    color: #94a3b8;
+}
+
+.signal-reason-text {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+}
+
+.signal-metric {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent-cyan);
+    margin-left: 8px;
+}
+
+@media (max-width: 768px) {
+    .signal-evidence-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+}
+
+/* ── Candidate Vessel Evidence Card (Section 8) ── */
+.candidate-evidence-card {
+    background: rgba(10, 16, 28, 0.70);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    transition: all 0.20s ease;
+}
+
+.candidate-evidence-card:hover {
+    border-color: rgba(56, 189, 248, 0.30);
+    background: rgba(14, 22, 38, 0.80);
+}
+
+.candidate-card-selected {
+    border-color: var(--accent-cyan) !important;
+    background: rgba(14, 25, 45, 0.85) !important;
+    box-shadow: 0 0 20px -3px rgba(56, 189, 248, 0.25) !important;
+}
+
+.cand-card-top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cand-rank {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 4px;
+    padding: 3px 8px;
+}
+
+.cand-identity {
+    flex: 1;
+}
+
+.cand-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-pure);
+    letter-spacing: -0.01em;
+}
+
+.cand-meta {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.cand-score-box {
+    text-align: right;
+}
+
+.cand-score-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.cand-score-val {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    font-variant-numeric: tabular-nums;
+}
+
+.cand-evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.cand-ev-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.cand-ev-lbl {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+.cand-ev-val {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+    .cand-evidence-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+}
+
+/* ── Analytical Evidence Chain (Section 10) ── */
+.evidence-chain-flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 16px 0;
+}
+
+.chain-step-card {
+    width: 100%;
+    max-width: 640px;
+    background: rgba(10, 16, 28, 0.70);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 12px 18px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.30);
+    transition: border-color 0.18s ease;
+}
+
+.chain-step-card:hover {
+    border-color: rgba(56, 189, 248, 0.28);
+}
+
+.chain-step-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.chain-step-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    background: rgba(56, 189, 248, 0.10);
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+
+.chain-step-title {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text-pure);
+}
+
+.chain-step-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.chain-arrow {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    color: var(--accent-cyan);
+    opacity: 0.65;
+    user-select: none;
+    line-height: 1;
+}
+
+/* ── Calm Honest Empty State (Rule 0) ── */
+.empty-state-panel {
+    text-align: center;
+    background: rgba(8, 13, 24, 0.60);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px dashed rgba(255, 255, 255, 0.10);
+    border-radius: 10px;
+    padding: 36px 24px;
+    margin: 16px 0;
+}
+
+.empty-state-icon {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    opacity: 0.7;
+}
+
+.empty-state-title {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.empty-state-desc {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.5;
+}
+
+/* ── Diagnostic Matrix Workspace (Section 6) ── */
+.diag-matrix-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(10, 16, 28, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px 6px 0 0;
+    padding: 6px 10px;
+    margin-top: 10px;
+}
+
+.diag-panel-title {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.diag-panel-status {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--accent-cyan);
+    background: rgba(56, 189, 248, 0.10);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
