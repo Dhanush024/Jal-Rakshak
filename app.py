@@ -4911,6 +4911,9 @@ def render_landing_screen():
 def render_live_operations_screen(final_state, is_demo, spill_lat, spill_lon, active_image):
     live_view = st.session_state.get("live_view", "map").lower()
 
+    # Contextual investigation rail for view switching
+    render_live_nav_rail(live_view)
+
     if live_view == "sar":
         render_sar_tab(final_state, is_demo=False, spill_lat=spill_lat, spill_lon=spill_lon, active_image=active_image)
     elif live_view == "ais":
@@ -4945,7 +4948,37 @@ def render_demo_screen(final_state, is_demo, spill_lat, spill_lon, active_image)
         st.session_state["demo_step"] = 1
     current_step = st.session_state["demo_step"]
 
-    # Persistent minimal progress rail (Section 4: 01 SAR -> 02 VALIDATION -> 03 AIS -> 04 SOURCE -> 05 DRIFT -> 06 REPORT)
+    # Visual investigation rail (glass, non-interactive display)
+    demo_stages_meta = [
+        {"code": "01", "label": "SAR"},
+        {"code": "02", "label": "VALIDATION"},
+        {"code": "03", "label": "AIS"},
+        {"code": "04", "label": "SOURCE"},
+        {"code": "05", "label": "DRIFT"},
+        {"code": "06", "label": "REPORT"},
+    ]
+    rail_html_items = []
+    for j, sm in enumerate(demo_stages_meta):
+        step_idx = j + 1
+        if step_idx == current_step:
+            cls = "jr-rail-stage--active"
+        elif step_idx < current_step:
+            cls = "jr-rail-stage--done"
+        else:
+            cls = "jr-rail-stage--future"
+        rail_html_items.append(f'''
+        <div class="jr-rail-stage {cls}">
+            <span class="jr-rail-num">{sm["code"]}</span>
+            <span class="jr-rail-label">{sm["label"]}</span>
+            <span class="jr-rail-status"></span>
+        </div>
+        ''')
+        if j < len(demo_stages_meta) - 1:
+            conn_cls = "jr-rail-connector--done" if step_idx < current_step else ""
+            rail_html_items.append(f'<div class="jr-rail-connector {conn_cls}"></div>')
+    render_html(f'<div class="jr-investigation-rail">{"".join(rail_html_items)}</div>')
+
+    # Clickable progress rail (Streamlit buttons for actual navigation)
     new_step = render_progress_rail(
         current_step=current_step,
         steps=DesignTokens.DEMO_STAGES,
@@ -4955,9 +4988,6 @@ def render_demo_screen(final_state, is_demo, spill_lat, spill_lon, active_image)
         st.session_state["demo_step"] = new_step
         st.rerun()
 
-    render_html("<hr style='border-color:rgba(255,255,255,0.08); margin:12px 0 16px 0;'>")
-
-    # Render Active Stage (Section 13: Clean, compact pattern without text-heavy boxes)
     if current_step == 1:
         render_sar_tab(final_state, is_demo=True, spill_lat=spill_lat, spill_lon=spill_lon, active_image=active_image)
     elif current_step == 2:
@@ -4972,11 +5002,11 @@ def render_demo_screen(final_state, is_demo, spill_lat, spill_lon, active_image)
         render_reports_tab(final_state, is_demo=True)
 
     # Clean Stepper Navigation Footer
-    render_html("<br><hr style='border-color:rgba(255,255,255,0.08); margin:20px 0 16px 0;'>")
+    render_html("<hr style='border-color:var(--border-subtle); margin:24px 0 14px 0;'>")
     col_nav1, col_nav2, col_nav3 = st.columns([3, 4, 3])
     with col_nav1:
         if current_step > 1:
-            if st.button("◀ Previous Stage", key="demo_btn_prev", use_container_width=True):
+            if st.button("◀ Previous", key="demo_btn_prev", use_container_width=True):
                 st.session_state["demo_step"] = current_step - 1
                 st.rerun()
     with col_nav2:
@@ -4990,13 +5020,13 @@ def render_demo_screen(final_state, is_demo, spill_lat, spill_lon, active_image)
         ]
         stage_name = stage_names[current_step - 1] if 1 <= current_step <= 6 else f"STAGE {current_step}"
         render_html(f"""
-        <div style="text-align:center; font-family:var(--font-mono); font-size:13px; color:#94a3b8; padding-top:8px;">
-            STAGE {current_step} OF 6: {stage_name}
+        <div style="text-align:center; font-family:var(--font-mono); font-size:12px; color:var(--text-muted); padding-top:8px; letter-spacing:0.04em;">
+            STAGE {current_step} OF 6 · {stage_name}
         </div>
         """)
     with col_nav3:
         if current_step < 6:
-            if st.button("Next Stage ▶", key="demo_btn_next", type="primary", use_container_width=True):
+            if st.button("Next ▶", key="demo_btn_next", type="primary", use_container_width=True):
                 st.session_state["demo_step"] = current_step + 1
                 st.rerun()
         else:
